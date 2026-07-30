@@ -89,6 +89,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => { if (user) fetchChats(); }, [user]);
 
+  const saveDeviceMemory = (userId: string, email: string, username?: string) => {
+    try {
+      let deviceId = localStorage.getItem('garexcell_device_id');
+      if (!deviceId) {
+        deviceId = `dev_${Math.random().toString(36).substring(2, 10)}_${Date.now()}`;
+        localStorage.setItem('garexcell_device_id', deviceId);
+      }
+
+      const deviceRecord = {
+        deviceId,
+        userId,
+        email,
+        username: username || email.split('@')[0],
+        savedAt: new Date().toISOString(),
+        trusted: true
+      };
+
+      localStorage.setItem(`garexcell_trusted_device_${userId}`, JSON.stringify(deviceRecord));
+
+      const existingStr = localStorage.getItem('garexcell_remembered_accounts');
+      const existing = existingStr ? JSON.parse(existingStr) : [];
+      const updated = [
+        deviceRecord,
+        ...existing.filter((a: any) => a.userId !== userId)
+      ].slice(0, 5);
+
+      localStorage.setItem('garexcell_remembered_accounts', JSON.stringify(updated));
+    } catch (err) {
+      console.warn('Failed to save device memory:', err);
+    }
+  };
+
   const fetchProfile = async (userId: string, overrideEmail?: string) => {
     const { data, error } = await supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle();
     
@@ -98,6 +130,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (data && data.username && data.username.trim() !== '') {
+      // Save trusted device memory to localStorage
+      saveDeviceMemory(userId, data.email || overrideEmail || '', data.username);
+
       let status: AccountStatus = data.account_status || 'active';
       let limitedUntil: number | undefined = undefined;
 

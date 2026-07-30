@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Gamepad2, Shield, Radio, Sparkles, Users, ArrowRight, X, Play, Zap, Trophy, Database } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
+import { GeoBlockOverlay } from '../components/GeoBlockOverlay';
 import { GAMES_LIST } from '../data/games';
 import { useAuth } from '../context/AuthContext';
 import { getTranslation } from '../lib/i18n';
@@ -35,6 +36,7 @@ export const LandingPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col transition-colors">
+      <GeoBlockOverlay />
       <Navbar showLiveIcon={false} hideLinks={true} />
 
       <main className="flex-1">

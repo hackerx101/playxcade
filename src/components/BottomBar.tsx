@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Compass, MessageSquare, User, Flame } from 'lucide-react';
+import { Home, Compass, Gamepad2, MessageSquare, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getTranslation } from '../lib/i18n';
 
@@ -9,7 +9,7 @@ export const BottomBar: React.FC = () => {
 
   const navItems = [
     { to: '/feed', icon: Home, label: getTranslation(language, 'home') },
-    { to: '/foryou', icon: Flame, label: getTranslation(language, 'forYou') },
+    { to: '/cloud', icon: Gamepad2, label: 'Cloud' },
     { to: '/explore', icon: Compass, label: getTranslation(language, 'explore') },
     { to: '/dm', icon: MessageSquare, label: getTranslation(language, 'chat') },
     { to: user ? '/profile' : '/auth', icon: User, label: getTranslation(language, 'profile') },

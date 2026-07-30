@@ -298,9 +298,19 @@ export const AuthPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center space-x-1">
-                <Lock className="w-3.5 h-3.5" />
-                <span>Password</span>
+              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span className="flex items-center space-x-1">
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Password</span>
+                </span>
+                {mode === 'login' && (
+                  <Link
+                    to="/password/reset"
+                    className="text-[11px] font-semibold text-indigo-600 hover:underline"
+                  >
+                    Forgot Password?
+                  </Link>
+                )}
               </label>
               <input
                 type="password"
@@ -367,16 +377,44 @@ export const AuthPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Bio
-                  </label>
-                  <input
-                    type="text"
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Gamer Bio & Tagline
+                    </label>
+                    <span className="text-[10px] font-mono font-bold text-slate-400">
+                      {bio.length}/250
+                    </span>
+                  </div>
+
+                  <textarea
                     value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    placeholder="Short bio..."
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 text-slate-900"
+                    onChange={(e) => setBio(e.target.value.slice(0, 250))}
+                    rows={3}
+                    placeholder="Tell the Garexcell community about your favorite games, favorite platforms, playstyle, or streaming schedule..."
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 text-slate-900 resize-none font-medium"
                   />
+
+                  {/* Preset Bio Chips */}
+                  <div className="mt-2 space-y-1">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quick Presets:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        '🎮 Competitive FPS & Tactical Shooter Main',
+                        '🚀 Livestreamer & Content Creator',
+                        '🛡️ eSports Competitor & Mod',
+                        '🏆 Casual RPG Explorer & Achievement Hunter'
+                      ].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setBio(preset)}
+                          className="px-2 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 rounded-lg text-[10px] font-bold transition border border-slate-200/80"
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </>
             )}

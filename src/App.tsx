@@ -18,6 +18,8 @@ import { IdentityVerifyPage } from './pages/IdentityVerifyPage';
 import { TOSPage } from './pages/TOSPage';
 import { AuthVerifyPage } from './pages/AuthVerifyPage';
 import { PasswordResetPage } from './pages/PasswordResetPage';
+import { CloudGamingPage } from './pages/CloudGamingPage';
+import { HackedAccountPage } from './pages/HackedAccountPage';
 import { ProfileSetupModal } from './components/ProfileSetupModal';
 
 // Protected route wrapper that checks if user is logged in and not suspended
@@ -41,14 +43,17 @@ export default function App() {
       <ProfileSetupModal />
       <BrowserRouter>
         <Routes>
-          {/* Landing & Public Routes */}
+          {/* Public Landing, Auth & Cloud Gaming */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/cloud" element={<CloudGamingPage />} />
           <Route path="/auth font" element={<AuthPage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/auth/verify" element={<AuthVerifyPage />} />
           <Route path="/auth/verify/:token" element={<AuthVerifyPage />} />
           <Route path="/password/reset" element={<PasswordResetPage />} />
           <Route path="/password/reset/:token" element={<PasswordResetPage />} />
+          <Route path="/account/verify/hacked" element={<HackedAccountPage />} />
+          <Route path="/account/id/verify" element={<IdentityVerifyPage />} />
           <Route path="/sso" element={<SSOPage />} />
           <Route path="/tos font" element={<TOSPage />} />
           <Route path="/tos" element={<TOSPage />} />

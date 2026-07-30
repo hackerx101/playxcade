@@ -56,16 +56,20 @@ export const Navbar: React.FC<NavbarProps> = ({ onStartStream, showLiveIcon = tr
         {/* Center Navigation Links (Desktop) - Hidden on Landing Page when hideLinks is true */}
         {!hideLinks && (
           <div className="hidden md:flex items-center space-x-6 text-sm font-medium text-slate-600">
-            <Link to="/feed" className="hover:text-indigo-600:text-indigo-400 transition">
+            <Link to="/feed" className="hover:text-indigo-600 transition">
               {getTranslation(language, 'home')}
             </Link>
-            <Link to="/foryou" className="hover:text-indigo-600:text-indigo-400 transition">
+            <Link to="/foryou" className="hover:text-indigo-600 transition">
               {getTranslation(language, 'forYou')}
             </Link>
-            <Link to="/explore" className="hover:text-indigo-600:text-indigo-400 transition">
+            <Link to="/explore" className="hover:text-indigo-600 transition">
               {getTranslation(language, 'explore')}
             </Link>
-            <Link to="/dm" className="hover:text-indigo-600:text-indigo-400 transition">
+            <Link to="/cloud" className="hover:text-indigo-600 text-indigo-600 font-bold flex items-center space-x-1.5 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100 transition">
+              <Gamepad2 className="w-4 h-4 text-indigo-600" />
+              <span>Cloud Gaming</span>
+            </Link>
+            <Link to="/dm" className="hover:text-indigo-600 transition">
               {getTranslation(language, 'chat')}
             </Link>
           </div>
