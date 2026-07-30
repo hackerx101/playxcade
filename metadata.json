@@ -1,0 +1,6 @@
+{
+  "name": "Playxcade",
+  "description": "Gaming Social Network by Garexcell with stream features, discovery feed, user profiles, identity verification, and full settings.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
