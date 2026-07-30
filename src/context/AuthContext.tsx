@@ -12,6 +12,8 @@ import {
   AccountStatus
 } from '../types';
 import { isReservedUsername, sanitizeDatabaseError } from '../lib/validation';
+import { analyzeTextContent } from '../lib/moderation';
+import { sendSuspensionEmail } from '../lib/resendService';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -133,6 +135,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         wallet_balance: data.wallet_balance || 0,
         followers_count: data.followers_count || 0,
         following_count: data.following_count || 0,
+        strikes_count: data.strikes_count || 0,
+        warnings_count: data.warnings_count || 0,
         needsProfileSetup: false
       });
     } else {
@@ -189,7 +193,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password?: string) => {
     if (!password) return { success: false, error: 'Password required' };
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { success: false, error: error.message };
+    if (error) return { success: false, error: sanitizeDatabaseError(error.message, 'auth') };
     if (data.user) {
       await fetchProfile(data.user.id, email);
     }
@@ -211,7 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // 1. SignUp user
     const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) return { success: false, error: sanitizeDatabaseError(error.message) };
+    if (error) return { success: false, error: sanitizeDatabaseError(error.message, 'auth') };
 
     let sessionUser = data.user;
 
@@ -256,6 +260,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const createPost = async (postData: any) => {
     if (!user) return;
+    if (user.account_status === 'suspended' || user.account_status === 'permanently_disabled') {
+      alert(`Account Suspended: Your account has been suspended due to community guidelines violations.`);
+      return;
+    }
     if (user.account_status === 'limited') {
       const remainingMs = Math.max(0, (user.limited_until || (Date.now() + 8 * 60 * 60 * 1000)) - Date.now());
       const remainingHours = Math.max(1, Math.ceil(remainingMs / (1000 * 60 * 60)));
@@ -263,8 +271,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    // MODERATION ENGINE CHECK
+    const captionText = postData.caption || '';
+    const modResult = analyzeTextContent(captionText);
+
     const { data: { session } } = await supabase.auth.getSession();
     const effectiveUserId = session?.user?.id || user.user_id;
+
+    if (modResult.action === 'REJECT_AND_STRIKE') {
+      const newStrikes = (user.strikes_count || 0) + 1;
+      const willBeSuspended = newStrikes >= 4 || modResult.isSevere;
+
+      // Try RPC function first, or direct fallback update
+      try {
+        await supabase.rpc('record_moderation_event', {
+          p_user_id: effectiveUserId,
+          p_event_type: 'strike',
+          p_reason: modResult.description || 'Prohibited statement',
+          p_is_severe: modResult.isSevere
+        });
+      } catch (e) {
+        await supabase.from('profiles').update({
+          strikes_count: newStrikes,
+          account_status: willBeSuspended ? 'suspended' : 'limited',
+          is_banned: willBeSuspended
+        }).eq('user_id', effectiveUserId);
+      }
+
+      await fetchProfile(effectiveUserId);
+
+      if (willBeSuspended) {
+        sendSuspensionEmail({
+          email: user.email || session?.user?.email || 'user@example.com',
+          username: user.username || 'gamer',
+          reason: modResult.description || 'Prohibited text content violation'
+        });
+      }
+
+      alert(`🚨 POST BLOCKED & STRIKE APPLIED:\n\n${modResult.userFacingMessage}\n\nStrike Status: ${newStrikes}/4 strikes.${willBeSuspended ? ' Your account is now SUSPENDED. An automated suspension notice with an appeal link has been sent to your email.' : ''}`);
+      return;
+    }
+
+    if (modResult.action === 'WARN_AND_ALLOW') {
+      try {
+        await supabase.rpc('record_moderation_event', {
+          p_user_id: effectiveUserId,
+          p_event_type: 'warning',
+          p_reason: modResult.description || 'Heated statement',
+          p_is_severe: false
+        });
+      } catch (e) {
+        await supabase.from('profiles').update({
+          warnings_count: (user.warnings_count || 0) + 1
+        }).eq('user_id', effectiveUserId);
+      }
+      alert(`⚠️ COMMUNITY COURTESY REMINDER:\n\n${modResult.userFacingMessage}`);
+    }
 
     // Ensure profile row exists to satisfy posts foreign key
     const { data: profileCheck } = await supabase.from('profiles').select('user_id').eq('user_id', effectiveUserId).maybeSingle();
@@ -282,14 +344,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data, error } = await supabase.from('posts').insert({
       user_id: effectiveUserId,
-      caption: postData.caption || '',
+      caption: captionText,
       type: postData.type || 'text',
       media_url: postData.media_url || null
     }).select();
 
     if (error) {
       console.error("Error creating post:", error);
-      alert(`Could not create post: ${error.message}`);
+      alert(sanitizeDatabaseError(error.message, 'post'));
     } else {
       await fetchPosts();
     }
@@ -446,7 +508,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const sendMessage = async (chatId: string, text: string, username?: string) => {
     if (!user) return;
-    
+    if (user.account_status === 'suspended' || user.account_status === 'permanently_disabled') {
+      alert(`Account Suspended: Your account is suspended and cannot send direct messages.`);
+      return;
+    }
+
+    // MODERATION ENGINE CHECK FOR MESSAGES
+    const modResult = analyzeTextContent(text || '');
+
+    if (modResult.action === 'REJECT_AND_STRIKE') {
+      const newStrikes = (user.strikes_count || 0) + 1;
+      const willBeSuspended = newStrikes >= 4 || modResult.isSevere;
+
+      try {
+        await supabase.rpc('record_moderation_event', {
+          p_user_id: user.user_id,
+          p_event_type: 'strike',
+          p_reason: modResult.description || 'Prohibited message',
+          p_is_severe: modResult.isSevere
+        });
+      } catch (e) {
+        await supabase.from('profiles').update({
+          strikes_count: newStrikes,
+          account_status: willBeSuspended ? 'suspended' : 'limited',
+          is_banned: willBeSuspended
+        }).eq('user_id', user.user_id);
+      }
+
+      await fetchProfile(user.user_id);
+
+      if (willBeSuspended) {
+        sendSuspensionEmail({
+          email: user.email || 'user@example.com',
+          username: user.username || 'gamer',
+          reason: modResult.description || 'Prohibited messaging violation'
+        });
+      }
+
+      alert(`🚨 MESSAGE BLOCKED & STRIKE APPLIED:\n\n${modResult.userFacingMessage}\n\nStrike Status: ${newStrikes}/4 strikes.${willBeSuspended ? ' Your account is now SUSPENDED. An email notice with an appeal link has been sent to your address.' : ''}`);
+      return;
+    }
+
+    if (modResult.action === 'WARN_AND_ALLOW') {
+      try {
+        await supabase.rpc('record_moderation_event', {
+          p_user_id: user.user_id,
+          p_event_type: 'warning',
+          p_reason: modResult.description || 'Heated text',
+          p_is_severe: false
+        });
+      } catch (e) {
+        await supabase.from('profiles').update({
+          warnings_count: (user.warnings_count || 0) + 1
+        }).eq('user_id', user.user_id);
+      }
+      alert(`⚠️ COMMUNITY REMINDER:\n\n${modResult.userFacingMessage}`);
+    }
+
     let actualChatId = chatId;
     
     // If it's a new chat, we need to create it first

@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { User, Sparkles, CheckCircle, Shield, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { User, Sparkles, CheckCircle, Shield, AlertCircle, CheckCircle2, AlertTriangle, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { sanitizeDatabaseError } from '../lib/validation';
 import { useUsernameValidation } from '../hooks/useUsernameValidation';
 
 export const ProfileSetupModal: React.FC = () => {
-  const { user, completeOnboarding } = useAuth();
+  const { user, completeOnboarding, logout } = useAuth();
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [dob, setDob] = useState('2002-01-01');
@@ -151,20 +151,31 @@ export const ProfileSetupModal: React.FC = () => {
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold rounded-xl text-sm shadow-md transition flex items-center justify-center space-x-2"
-          >
-            {loading ? (
-              <span>Saving Profile...</span>
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4" />
-                <span>Complete Profile & Continue</span>
-              </>
-            )}
-          </button>
+          <div className="pt-2 flex flex-col space-y-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold rounded-xl text-sm shadow-md transition flex items-center justify-center space-x-2"
+            >
+              {loading ? (
+                <span>Saving Profile...</span>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  <span>Complete Profile & Continue</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={logout}
+              className="w-full py-2.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 border border-slate-200 hover:border-rose-200"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Log Out & Switch Account</span>
+            </button>
+          </div>
         </form>
       </div>
     </div>

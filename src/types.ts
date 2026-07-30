@@ -24,6 +24,8 @@ export interface UserProfile {
   followers_count?: number;
   following_count?: number;
   posts_count?: number;
+  strikes_count?: number;
+  warnings_count?: number;
   created_at: string;
   needsProfileSetup?: boolean;
 }

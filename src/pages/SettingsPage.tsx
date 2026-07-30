@@ -210,8 +210,31 @@ export const SettingsPage: React.FC = () => {
 
               {/* Security */}
               <div className="pt-4 space-y-2">
-                <p className="font-bold text-slate-900 text-sm">Security</p>
-                <div className="flex justify-between items-center">
+                <p className="font-bold text-slate-900 text-sm">Security & Community Standing</p>
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-700">Account Standing</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                      user?.account_status === 'active'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : user?.account_status === 'limited'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {user?.account_status || 'active'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-600">
+                    <span>Moderation Strikes</span>
+                    <span className="font-extrabold text-slate-900">{user?.strikes_count || 0} / 4 Strikes</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-600">
+                    <span>Policy Reminders / Warnings</span>
+                    <span className="font-bold text-slate-700">{user?.warnings_count || 0} Warnings</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-2">
                   <span>Two-Factor Authentication</span>
                   <button onClick={() => handleAction('2FA Setup')} className="text-indigo-600 font-bold hover:underline">
                     Enable
