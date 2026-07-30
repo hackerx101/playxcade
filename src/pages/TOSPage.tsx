@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Shield, FileText, Scale, AlertTriangle, Lock, HelpCircle, CheckCircle, Clock } from 'lucide-react';
+import { Shield, FileText, Scale, AlertTriangle, Lock, HelpCircle, CheckCircle, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Footer } from '../components/Footer';
+import { IOSBackButton } from '../components/IOSBackButton';
 
 export const TOSPage: React.FC = () => {
   const navigate = useNavigate();
@@ -34,13 +35,7 @@ export const TOSPage: React.FC = () => {
       {/* Header */}
       <header className="p-4 border-b border-slate-200 bg-white sticky top-0 z-30 shadow-sm">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center space-x-2 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Playxcade</span>
-          </button>
+          <IOSBackButton onClick={() => navigate(-1)} label="Back to Playxcade" />
           <div className="flex items-center space-x-2">
             <Shield className="w-4 h-4 text-indigo-600" />
             <span className="font-extrabold text-sm text-slate-900">Playxcade Legal Framework</span>

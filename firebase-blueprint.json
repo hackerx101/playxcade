@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "profiles": {
+      "fields": {
+        "user_id": { "type": "string" },
+        "username": { "type": "string" },
+        "email": { "type": "string" },
+        "avatar_url": { "type": "string" },
+        "bio": { "type": "string" },
+        "wallet_balance": { "type": "number" },
+        "followers_count": { "type": "number" },
+        "following_count": { "type": "number" },
+        "is_verified": { "type": "boolean" },
+        "account_status": { "type": "string" },
+        "appeal_status": { "type": "string" },
+        "is_banned": { "type": "boolean" },
+        "strikes_count": { "type": "number" },
+        "warnings_count": { "type": "number" },
+        "created_at": { "type": "string" }
+      }
+    },
+    "posts": {
+      "fields": {
+        "id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "author_username": { "type": "string" },
+        "author_avatar": { "type": "string" },
+        "author_is_verified": { "type": "boolean" },
+        "caption": { "type": "string" },
+        "type": { "type": "string" },
+        "media_url": { "type": "string" },
+        "likes_count": { "type": "number" },
+        "comments_count": { "type": "number" },
+        "created_at": { "type": "string" }
+      }
+    },
+    "post_likes": {
+      "fields": {
+        "post_id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "created_at": { "type": "string" }
+      }
+    },
+    "post_comments": {
+      "fields": {
+        "id": { "type": "string" },
+        "post_id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "content": { "type": "string" },
+        "created_at": { "type": "string" }
+      }
+    },
+    "followers": {
+      "fields": {
+        "follower_id": { "type": "string" },
+        "following_id": { "type": "string" },
+        "created_at": { "type": "string" }
+      }
+    },
+    "chats": {
+      "fields": {
+        "id": { "type": "string" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      }
+    },
+    "chat_participants": {
+      "fields": {
+        "chat_id": { "type": "string" },
+        "user_id": { "type": "string" }
+      }
+    },
+    "messages": {
+      "fields": {
+        "id": { "type": "string" },
+        "chat_id": { "type": "string" },
+        "sender_id": { "type": "string" },
+        "text": { "type": "string" },
+        "is_read": { "type": "boolean" },
+        "created_at": { "type": "string" }
+      }
+    },
+    "subscriptions": {
+      "fields": {
+        "id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "plan": { "type": "string" },
+        "status": { "type": "string" },
+        "created_at": { "type": "string" }
+      }
+    },
+    "identity": {
+      "fields": {
+        "id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "full_name": { "type": "string" },
+        "email": { "type": "string" },
+        "status": { "type": "string" },
+        "timestamp": { "type": "string" }
+      }
+    },
+    "sessions": {
+      "fields": {
+        "id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "device_name": { "type": "string" },
+        "ip_address": { "type": "string" },
+        "last_active": { "type": "string" }
+      }
+    }
+  }
+}

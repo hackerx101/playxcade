@@ -1,10 +1,35 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  User as FirebaseUser
+} from 'firebase/auth';
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  addDoc,
+  deleteDoc,
+  serverTimestamp,
+  increment,
+  onSnapshot
+} from 'firebase/firestore';
+import { auth, db, appCache } from '../lib/firebase';
 import { supabase } from '../lib/supabase';
 import {
   UserProfile,
   Post,
   Chat,
   Message,
+  NotificationItem,
   IdentityVerification,
   RecentAccount,
   Language,
@@ -17,6 +42,7 @@ import { sendSuspensionEmail } from '../lib/resendService';
 
 interface AuthContextType {
   user: UserProfile | null;
+  authProviderType: 'firebase' | 'supabase';
   recentAccounts: RecentAccount[];
   doNotShowRecent: boolean;
   setDoNotShowRecent: (val: boolean) => void;
@@ -28,6 +54,10 @@ interface AuthContextType {
   posts: Post[];
   chats: Chat[];
   messages: Message[];
+  notifications: NotificationItem[];
+  unreadNotificationCount: number;
+  markNotificationsAsRead: () => Promise<void>;
+  fetchRealUsers: () => Promise<UserProfile[]>;
   recentSearches: string[];
   addRecentSearch: (query: string) => void;
   clearRecentSearches: () => void;
@@ -35,9 +65,11 @@ interface AuthContextType {
   followingIds: string[];
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
   signup: (email: string, password?: string, username?: string, dob?: string, bio?: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithSupabase: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
+  signupWithSupabase: (email: string, password?: string, username?: string, dob?: string, bio?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   completeOnboarding: (data: { username: string; dob: string; bio: string; preferences?: string }) => Promise<{ success: boolean; error?: string }>;
-  createPost: (postData: { caption: string; type: 'text' | 'image' | 'video'; media_url?: string; tags?: string[]; hashtags?: string[]; category?: string; }) => void;
+  createPost: (postData: { caption: string; type: 'text' | 'image' | 'media_url'; media_url?: string; tags?: string[]; hashtags?: string[]; category?: string; }) => void;
   deletePost: (postId: string) => void;
   archivePost: (postId: string) => void;
   likePost: (postId: string) => void;
@@ -50,17 +82,20 @@ interface AuthContextType {
   sendMessage: (chatId: string, text: string, username?: string) => void;
   fetchMessages: (chatId: string) => void;
   deleteMessage: (messageId: string, chatId: string) => Promise<void>;
+  fetchCachedProfile: (userIdOrUsername: string) => Promise<UserProfile | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
-  
+  const [authProviderType, setAuthProviderType] = useState<'firebase' | 'supabase'>('firebase');
+
   const [posts, setPosts] = useState<Post[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
-  
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
   const [recentAccounts, setRecentAccounts] = useState<RecentAccount[]>([]);
   const [doNotShowRecent, setDoNotShowRecent] = useState(false);
   const [language, setLanguage] = useState<Language>('en');
@@ -69,25 +104,125 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [verifications, setVerifications] = useState<IdentityVerification[]>([]);
 
+  // Real-time Firestore notifications listener using onSnapshot
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        fetchProfile(session.user.id);
+    if (!user) {
+      setNotifications([]);
+      return;
+    }
+
+    try {
+      const notifRef = collection(db, 'notifications');
+      const q = query(notifRef, where('recipient_id', '==', user.user_id));
+      const unsubscribeNotifs = onSnapshot(
+        q,
+        (snapshot) => {
+          const items: NotificationItem[] = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            recipient_id: docSnap.data().recipient_id,
+            sender_id: docSnap.data().sender_id,
+            sender_username: docSnap.data().sender_username,
+            type: docSnap.data().type || 'system',
+            title: docSnap.data().title || 'Notification',
+            body: docSnap.data().body || '',
+            created_at: docSnap.data().created_at || new Date().toISOString(),
+            read: docSnap.data().read || false
+          }));
+
+          items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          setNotifications(items);
+        },
+        (err) => {
+          console.warn('Notifications listener notice:', err);
+        }
+      );
+
+      return () => unsubscribeNotifs();
+    } catch (err) {
+      console.warn('Failed to start notifications onSnapshot listener:', err);
+    }
+  }, [user]);
+
+  const markNotificationsAsRead = async () => {
+    if (!user || notifications.length === 0) return;
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    for (const n of notifications.filter((item) => !item.read)) {
+      updateDoc(doc(db, 'notifications', n.id), { read: true }).catch(() => {});
+    }
+  };
+
+  const unreadNotificationCount = notifications.filter((n) => !n.read).length;
+
+  const fetchRealUsers = async (): Promise<UserProfile[]> => {
+    try {
+      const q = query(collection(db, 'profiles'));
+      const querySnap = await getDocs(q);
+      const list: UserProfile[] = [];
+      querySnap.forEach((d) => {
+        const data = d.data();
+        if (data.username && (!user || data.user_id !== user.user_id)) {
+          list.push({
+            id: d.id,
+            user_id: data.user_id || d.id,
+            username: data.username,
+            email: data.email || '',
+            bio: data.bio || '',
+            avatar_url: data.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.username}`,
+            IsDeleted: false,
+            account_status: data.account_status || 'active',
+            appeal_status: 'none',
+            IsIdentityVerify: data.is_verified || false,
+            is_private: false,
+            created_at: data.created_at || new Date().toISOString()
+          });
+        }
+      });
+      return list;
+    } catch (err) {
+      console.warn('Fetch real users notice:', err);
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    // 1. Firebase Auth listener (Primary)
+    const unsubscribeFirebase = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        setAuthProviderType('firebase');
+        await fetchProfile(firebaseUser.uid, firebaseUser.email || undefined);
+      } else {
+        // Fallback check for Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setAuthProviderType('supabase');
+          await fetchProfile(session.user.id, session.user.email || undefined);
+        } else {
+          setUser(null);
+        }
       }
     });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        fetchProfile(session.user.id);
-      } else {
-        setUser(null);
+    // 2. Supabase Auth state listener (Failover)
+    const { data: { subscription: supabaseSub } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session && !auth.currentUser) {
+        setAuthProviderType('supabase');
+        await fetchProfile(session.user.id, session.user.email || undefined);
       }
     });
-    
+
     fetchPosts();
+
+    return () => {
+      unsubscribeFirebase();
+      supabaseSub.unsubscribe();
+    };
   }, []);
 
-  useEffect(() => { if (user) fetchChats(); }, [user]);
+  useEffect(() => {
+    if (user) {
+      fetchChats();
+    }
+  }, [user]);
 
   const saveDeviceMemory = (userId: string, email: string, username?: string) => {
     try {
@@ -121,89 +256,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const fetchProfile = async (userId: string, overrideEmail?: string) => {
-    const { data, error } = await supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle();
-    
-    // Check if user is permanently disabled or banned
-    if (data && (data.account_status === 'disabled' || data.account_status === 'permanently_disabled' || data.is_banned)) {
-      localStorage.setItem('perma_ban', 'true');
+  /**
+   * Fetch profile with smart caching to prevent unnecessary reads
+   */
+  const fetchProfile = async (userId: string, overrideEmail?: string): Promise<UserProfile | null> => {
+    const cachedProfile = appCache.getProfile(userId);
+    if (cachedProfile) {
+      setUser(cachedProfile);
+      return cachedProfile;
     }
 
-    if (data && data.username && data.username.trim() !== '') {
-      // Save trusted device memory to localStorage
-      saveDeviceMemory(userId, data.email || overrideEmail || '', data.username);
+    try {
+      const profileRef = doc(db, 'profiles', userId);
+      const profileSnap = await getDoc(profileRef);
+      const data = profileSnap.exists() ? profileSnap.data() : null;
 
-      let status: AccountStatus = data.account_status || 'active';
-      let limitedUntil: number | undefined = undefined;
-
-      if (status === 'limited') {
-        const storageKey = `limited_until_${userId}`;
-        let until = localStorage.getItem(storageKey);
-        if (!until) {
-          const expiryTime = Date.now() + 8 * 60 * 60 * 1000;
-          localStorage.setItem(storageKey, expiryTime.toString());
-          until = expiryTime.toString();
-        }
-        limitedUntil = Number(until);
-
-        if (Date.now() >= limitedUntil) {
-          status = 'active';
-          localStorage.removeItem(storageKey);
-          await supabase.from('profiles').update({ account_status: 'active' }).eq('user_id', userId);
-        }
-      }
-
-      const userEmail = (data.email || overrideEmail || '').toLowerCase();
+      const userEmail = (data?.email || overrideEmail || '').toLowerCase();
       const isGarexcellEmail = userEmail.endsWith('@garexcell.com');
-      const isVerified = data.is_verified || isGarexcellEmail;
+      const handle = data?.username || (userEmail ? userEmail.split('@')[0] : `user_${userId.substring(0, 6)}`);
 
-      setUser({
-        id: data.user_id,
-        user_id: data.user_id,
-        username: data.username,
-        email: userEmail,
-        bio: data.bio || '',
-        avatar_url: data.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.username}`,
-        IsDeleted: false,
-        account_status: status,
-        limited_until: limitedUntil,
-        appeal_status: data.appeal_status || 'none',
-        IsIdentityVerify: isVerified,
-        is_private: false,
-        created_at: data.created_at || new Date().toISOString(),
-        wallet_balance: data.wallet_balance || 0,
-        followers_count: data.followers_count || 0,
-        following_count: data.following_count || 0,
-        strikes_count: data.strikes_count || 0,
-        warnings_count: data.warnings_count || 0,
-        needsProfileSetup: false
-      });
-    } else {
-      // User exists in auth but profile row missing. Auto-create profile so normal users never get blocked by setup popup.
-      const { data: { session } } = await supabase.auth.getSession();
-      const userEmail = (overrideEmail || session?.user?.email || '').toLowerCase();
-      const isGarexcellEmail = userEmail.endsWith('@garexcell.com');
-      const handle = userEmail.split('@')[0] || 'user';
+      let formattedProfile: UserProfile;
 
-      const { error: createErr } = await supabase.from('profiles').upsert({
-        user_id: userId,
-        username: handle,
-        email: userEmail,
-        bio: '',
-        avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${handle}`,
-        account_status: 'active'
-      });
+      if (data) {
+        saveDeviceMemory(userId, userEmail, handle);
 
-      if (!createErr) {
-        await fetchProfile(userId, overrideEmail);
+        let status: AccountStatus = data.account_status || 'active';
+        let limitedUntil: number | undefined = undefined;
+
+        if (status === 'limited') {
+          const storageKey = `limited_until_${userId}`;
+          let until = localStorage.getItem(storageKey);
+          if (!until) {
+            const expiryTime = Date.now() + 8 * 60 * 60 * 1000;
+            localStorage.setItem(storageKey, expiryTime.toString());
+            until = expiryTime.toString();
+          }
+          limitedUntil = Number(until);
+
+          if (Date.now() >= limitedUntil) {
+            status = 'active';
+            localStorage.removeItem(storageKey);
+            await updateDoc(profileRef, { account_status: 'active' });
+          }
+        }
+
+        formattedProfile = {
+          id: data.user_id || userId,
+          user_id: data.user_id || userId,
+          username: handle,
+          email: userEmail,
+          bio: data.bio || '',
+          avatar_url: data.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${handle}`,
+          IsDeleted: false,
+          account_status: status,
+          limited_until: limitedUntil,
+          appeal_status: data.appeal_status || 'none',
+          IsIdentityVerify: data.is_verified || isGarexcellEmail,
+          is_private: false,
+          created_at: data.created_at || new Date().toISOString(),
+          wallet_balance: data.wallet_balance || 0,
+          followers_count: data.followers_count || 0,
+          following_count: data.following_count || 0,
+          strikes_count: data.strikes_count || 0,
+          warnings_count: data.warnings_count || 0,
+          needsProfileSetup: false,
+          is_2fa_enabled: data.is_2fa_enabled || false
+        };
       } else {
-        setUser({
+        // Create initial document in Firestore
+        const avatar_url = `https://api.dicebear.com/7.x/bottts/svg?seed=${handle}`;
+        formattedProfile = {
           id: userId,
           user_id: userId,
           username: handle,
           email: userEmail,
           bio: '',
-          avatar_url: '',
+          avatar_url,
           IsDeleted: false,
           account_status: 'active',
           appeal_status: 'none',
@@ -211,60 +339,150 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           is_private: false,
           created_at: new Date().toISOString(),
           wallet_balance: 0,
-          needsProfileSetup: false
-        });
-      }
-    }
-  };
-
-  const fetchPosts = async () => {
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*, profiles(username, avatar_url, is_verified, email)')
-      .order('created_at', { ascending: false });
-      
-    if (data) {
-      const formattedPosts = data.map(p => {
-        const profileObj = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
-        const profileEmail = (profileObj?.email || '').toLowerCase();
-        const authorIsVerified = profileObj?.is_verified || profileEmail.endsWith('@garexcell.com');
-
-        return {
-          id: p.id,
-          user_id: p.user_id,
-          author_username: profileObj?.username || 'Garexcell User',
-          author_email: profileObj?.email,
-          author_avatar: profileObj?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.user_id}`,
-          author_is_verified: authorIsVerified,
-          caption: p.caption,
-          type: p.type,
-          media_url: p.media_url,
-          likes_count: p.likes_count || 0,
-          comments_count: p.comments_count || 0,
-          is_liked: false,
-          created_at: new Date(p.created_at).toLocaleString()
+          followers_count: 0,
+          following_count: 0,
+          needsProfileSetup: false,
+          is_2fa_enabled: false
         };
-      }) as Post[];
-      setPosts(formattedPosts);
+
+        // Persist to Firestore & Supabase in background
+        await setDoc(profileRef, {
+          user_id: userId,
+          username: handle,
+          email: userEmail,
+          bio: '',
+          avatar_url,
+          account_status: 'active',
+          created_at: new Date().toISOString()
+        }, { merge: true });
+
+        supabase.from('profiles').upsert({
+          user_id: userId,
+          username: handle,
+          email: userEmail,
+          bio: '',
+          avatar_url,
+          account_status: 'active'
+        }).then(() => {});
+      }
+
+      // Cache profile
+      appCache.setProfile(userId, formattedProfile);
+      appCache.setProfile(handle, formattedProfile);
+
+      setUser(formattedProfile);
+      return formattedProfile;
+    } catch (err) {
+      console.warn('Error fetching Firestore profile:', err);
+      return null;
     }
   };
 
+  const fetchCachedProfile = async (userIdOrUsername: string): Promise<UserProfile | null> => {
+    const cached = appCache.getProfile(userIdOrUsername);
+    if (cached) return cached;
+    return await fetchProfile(userIdOrUsername);
+  };
+
+  /**
+   * Fetch posts with smart caching
+   */
+  const fetchPosts = async () => {
+    try {
+      const postsRef = collection(db, 'posts');
+      const q = query(postsRef, orderBy('created_at', 'desc'));
+      const querySnap = await getDocs(q);
+
+      if (!querySnap.empty) {
+        const fetchedPosts: Post[] = querySnap.docs.map(docSnap => {
+          const p = docSnap.data();
+          const postObj: Post = {
+            id: docSnap.id,
+            user_id: p.user_id,
+            author_username: p.author_username || 'Garexcell User',
+            author_email: p.author_email,
+            author_avatar: p.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.user_id}`,
+            author_is_verified: p.author_is_verified || false,
+            caption: p.caption,
+            type: p.type || 'text',
+            media_url: p.media_url,
+            likes_count: p.likes_count || 0,
+            comments_count: p.comments_count || 0,
+            is_liked: false,
+            created_at: p.created_at ? new Date(p.created_at).toLocaleString() : 'Just now'
+          };
+          appCache.setPost(docSnap.id, postObj);
+          return postObj;
+        });
+
+        setPosts(fetchedPosts);
+      } else {
+        // Check Supabase if Firestore posts are not seeded yet
+        const { data } = await supabase
+          .from('posts')
+          .select('*, profiles(username, avatar_url, is_verified, email)')
+          .order('created_at', { ascending: false });
+
+        if (data && data.length > 0) {
+          const formatted = data.map(p => {
+            const profileObj = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+            const postObj: Post = {
+              id: p.id,
+              user_id: p.user_id,
+              author_username: profileObj?.username || 'Garexcell User',
+              author_email: profileObj?.email,
+              author_avatar: profileObj?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.user_id}`,
+              author_is_verified: profileObj?.is_verified || false,
+              caption: p.caption,
+              type: p.type,
+              media_url: p.media_url,
+              likes_count: p.likes_count || 0,
+              comments_count: p.comments_count || 0,
+              is_liked: false,
+              created_at: new Date(p.created_at).toLocaleString()
+            };
+            // Seed Firestore
+            setDoc(doc(db, 'posts', p.id), {
+              ...postObj,
+              created_at: p.created_at
+            }, { merge: true });
+            appCache.setPost(p.id, postObj);
+            return postObj;
+          });
+          setPosts(formatted);
+        }
+      }
+    } catch (err) {
+      console.warn('Fetch posts warning:', err);
+    }
+  };
+
+  /**
+   * PRIMARY FIREBASE AUTH - Login
+   */
   const login = async (email: string, password?: string) => {
     if (!password) return { success: false, error: 'Password required' };
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { success: false, error: sanitizeDatabaseError(error.message, 'auth') };
-    if (data.user) {
-      await fetchProfile(data.user.id, email);
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      setAuthProviderType('firebase');
+      if (userCredential.user) {
+        await fetchProfile(userCredential.user.uid, email);
+      }
+      return { success: true };
+    } catch (err: any) {
+      console.warn('Firebase login failed, trying fallback:', err);
+      // Attempt failover login via Supabase
+      return await loginWithSupabase(email, password);
     }
-    return { success: true };
   };
 
+  /**
+   * PRIMARY FIREBASE AUTH - Signup
+   */
   const signup = async (email: string, password?: string, username?: string, dob?: string, bio?: string) => {
     if (!password) return { success: false, error: 'Password required' };
-    
     const handle = username?.trim() || email.split('@')[0];
 
-    // Check reserved username restriction
     if (isReservedUsername(handle, email)) {
       return {
         success: false,
@@ -272,13 +490,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
-    // 1. SignUp user
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+      setAuthProviderType('firebase');
+
+      if (firebaseUser) {
+        const avatar_url = `https://api.dicebear.com/7.x/bottts/svg?seed=${handle}`;
+
+        // Create profile document in Firestore
+        await setDoc(doc(db, 'profiles', firebaseUser.uid), {
+          user_id: firebaseUser.uid,
+          username: handle,
+          email: email.toLowerCase(),
+          bio: bio || '',
+          avatar_url,
+          account_status: 'active',
+          followers_count: 0,
+          following_count: 0,
+          dob: dob || null,
+          created_at: new Date().toISOString()
+        }, { merge: true });
+
+        // Backup creation in Supabase
+        supabase.from('profiles').upsert({
+          user_id: firebaseUser.uid,
+          username: handle,
+          email: email.toLowerCase(),
+          bio: bio || '',
+          avatar_url,
+          account_status: 'active',
+          dob: dob || null
+        }).then(() => {});
+
+        await fetchProfile(firebaseUser.uid, email);
+      }
+      return { success: true };
+    } catch (err: any) {
+      console.warn('Firebase signup failed, trying Supabase signup:', err);
+      return await signupWithSupabase(email, password, username, dob, bio);
+    }
+  };
+
+  /**
+   * FAILOVER SUPABASE AUTH - Login
+   */
+  const loginWithSupabase = async (email: string, password?: string) => {
+    if (!password) return { success: false, error: 'Password required' };
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { success: false, error: sanitizeDatabaseError(error.message, 'auth') };
+    setAuthProviderType('supabase');
+    if (data.user) {
+      await fetchProfile(data.user.id, email);
+    }
+    return { success: true };
+  };
+
+  /**
+   * FAILOVER SUPABASE AUTH - Signup
+   */
+  const signupWithSupabase = async (email: string, password?: string, username?: string, dob?: string, bio?: string) => {
+    if (!password) return { success: false, error: 'Password required' };
+    const handle = username?.trim() || email.split('@')[0];
+
+    if (isReservedUsername(handle, email)) {
+      return {
+        success: false,
+        error: 'This username is reserved for official Garexcell staff members.'
+      };
+    }
+
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { success: false, error: sanitizeDatabaseError(error.message, 'auth') };
 
+    setAuthProviderType('supabase');
     let sessionUser = data.user;
 
-    // 2. Ensure session is active for JWT / RLS by attempting signIn if session is missing
     if (!data.session) {
       const { data: signInData } = await supabase.auth.signInWithPassword({ email, password });
       if (signInData?.user) {
@@ -286,25 +573,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 3. Create or upsert profile
     if (sessionUser) {
       const avatar_url = `https://api.dicebear.com/7.x/bottts/svg?seed=${handle}`;
 
-      const { error: profileError } = await supabase.from('profiles').upsert({
+      await setDoc(doc(db, 'profiles', sessionUser.id), {
         user_id: sessionUser.id,
         username: handle,
-        email,
+        email: email.toLowerCase(),
         bio: bio || '',
         avatar_url,
         account_status: 'active',
         followers_count: 0,
-        following_count: 0
-      });
+        following_count: 0,
+        dob: dob || null,
+        created_at: new Date().toISOString()
+      }, { merge: true });
 
-      if (profileError) {
-        console.warn("Profile creation warning during signup (continuing):", profileError);
-        // Do not block signup if RLS or temporary profile error occurs
-      }
+      supabase.from('profiles').upsert({
+        user_id: sessionUser.id,
+        username: handle,
+        email: email.toLowerCase(),
+        bio: bio || '',
+        avatar_url,
+        account_status: 'active',
+        dob: dob || null
+      }).then(() => {});
 
       await fetchProfile(sessionUser.id, email);
     }
@@ -313,6 +606,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
+    appCache.clear();
+    await firebaseSignOut(auth);
     await supabase.auth.signOut();
     setUser(null);
   };
@@ -326,154 +621,192 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user.account_status === 'limited') {
       const remainingMs = Math.max(0, (user.limited_until || (Date.now() + 8 * 60 * 60 * 1000)) - Date.now());
       const remainingHours = Math.max(1, Math.ceil(remainingMs / (1000 * 60 * 60)));
-      alert(`Account Restricted: Your account status is currently LIMITED. You cannot create posts or follow anyone for 8 hours (${remainingHours}h remaining).`);
+      alert(`Account Restricted: Your account status is currently LIMITED. You cannot create posts for 8 hours (${remainingHours}h remaining).`);
       return;
     }
 
-    // MODERATION ENGINE CHECK
     const captionText = postData.caption || '';
     const modResult = analyzeTextContent(captionText);
-
-    const { data: { session } } = await supabase.auth.getSession();
-    const effectiveUserId = session?.user?.id || user.user_id;
 
     if (modResult.action === 'REJECT_AND_STRIKE') {
       const newStrikes = (user.strikes_count || 0) + 1;
       const willBeSuspended = newStrikes >= 4 || modResult.isSevere;
 
-      // Try RPC function first, or direct fallback update
-      try {
-        await supabase.rpc('record_moderation_event', {
-          p_user_id: effectiveUserId,
-          p_event_type: 'strike',
-          p_reason: modResult.description || 'Prohibited statement',
-          p_is_severe: modResult.isSevere
-        });
-      } catch (e) {
-        await supabase.from('profiles').update({
-          strikes_count: newStrikes,
-          account_status: willBeSuspended ? 'suspended' : 'limited',
-          is_banned: willBeSuspended
-        }).eq('user_id', effectiveUserId);
-      }
+      await updateDoc(doc(db, 'profiles', user.user_id), {
+        strikes_count: newStrikes,
+        account_status: willBeSuspended ? 'suspended' : 'limited',
+        is_banned: willBeSuspended
+      });
 
-      await fetchProfile(effectiveUserId);
+      await fetchProfile(user.user_id);
 
       if (willBeSuspended) {
         sendSuspensionEmail({
-          email: user.email || session?.user?.email || 'user@example.com',
+          email: user.email || 'user@example.com',
           username: user.username || 'gamer',
           reason: modResult.description || 'Prohibited text content violation'
         });
       }
 
-      alert(`🚨 POST BLOCKED & STRIKE APPLIED:\n\n${modResult.userFacingMessage}\n\nStrike Status: ${newStrikes}/4 strikes.${willBeSuspended ? ' Your account is now SUSPENDED. An automated suspension notice with an appeal link has been sent to your email.' : ''}`);
+      alert(`🚨 POST BLOCKED & STRIKE APPLIED:\n\n${modResult.userFacingMessage}\n\nStrike Status: ${newStrikes}/4 strikes.`);
       return;
     }
 
-    if (modResult.action === 'WARN_AND_ALLOW') {
-      try {
-        await supabase.rpc('record_moderation_event', {
-          p_user_id: effectiveUserId,
-          p_event_type: 'warning',
-          p_reason: modResult.description || 'Heated statement',
-          p_is_severe: false
-        });
-      } catch (e) {
-        await supabase.from('profiles').update({
-          warnings_count: (user.warnings_count || 0) + 1
-        }).eq('user_id', effectiveUserId);
-      }
-      alert(`⚠️ COMMUNITY COURTESY REMINDER:\n\n${modResult.userFacingMessage}`);
-    }
+    const newPostId = `post_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const newPostObj: Post = {
+      id: newPostId,
+      user_id: user.user_id,
+      author_username: user.username,
+      author_email: user.email,
+      author_avatar: user.avatar_url,
+      author_is_verified: user.IsIdentityVerify,
+      caption: captionText,
+      type: postData.type || 'text',
+      media_url: postData.media_url || undefined,
+      likes_count: 0,
+      comments_count: 0,
+      is_liked: false,
+      created_at: 'Just now'
+    };
 
-    // Ensure profile row exists to satisfy posts foreign key
-    const { data: profileCheck } = await supabase.from('profiles').select('user_id').eq('user_id', effectiveUserId).maybeSingle();
-    if (!profileCheck) {
-      const handle = user.username || session?.user?.email?.split('@')[0] || `user_${effectiveUserId.slice(0, 6)}`;
-      await supabase.from('profiles').upsert({
-        user_id: effectiveUserId,
-        username: handle,
-        email: user.email || session?.user?.email || '',
-        bio: user.bio || '',
-        avatar_url: user.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${handle}`,
-        account_status: 'active'
-      });
-    }
+    // Save to Firestore
+    await setDoc(doc(db, 'posts', newPostId), {
+      ...newPostObj,
+      created_at: new Date().toISOString()
+    });
 
-    const { data, error } = await supabase.from('posts').insert({
-      user_id: effectiveUserId,
+    // Save to cache
+    appCache.setPost(newPostId, newPostObj);
+
+    // Backup to Supabase
+    supabase.from('posts').insert({
+      id: newPostId,
+      user_id: user.user_id,
       caption: captionText,
       type: postData.type || 'text',
       media_url: postData.media_url || null
-    }).select();
+    }).then(() => {});
 
-    if (error) {
-      console.error("Error creating post:", error);
-      alert(sanitizeDatabaseError(error.message, 'post'));
-    } else {
-      await fetchPosts();
-    }
+    setPosts(prev => [newPostObj, ...prev]);
   };
 
   const toggleFollow = async (targetUserId: string) => {
     if (!user) return;
     if (user.account_status === 'limited') {
-      const remainingMs = Math.max(0, (user.limited_until || (Date.now() + 8 * 60 * 60 * 1000)) - Date.now());
-      const remainingHours = Math.max(1, Math.ceil(remainingMs / (1000 * 60 * 60)));
-      alert(`Account Restricted: Your account status is currently LIMITED. You cannot post or follow anyone for 8 hours (${remainingHours}h remaining).`);
+      alert(`Account Restricted: Your account status is LIMITED.`);
       return;
     }
-    if (followingIds.includes(targetUserId)) {
+
+    const followDocId = `${user.user_id}_${targetUserId}`;
+    const followRef = doc(db, 'followers', followDocId);
+    const followSnap = await getDoc(followRef);
+
+    const isCurrentlyFollowing = followSnap.exists() || followingIds.includes(targetUserId);
+
+    if (isCurrentlyFollowing) {
       setFollowingIds(prev => prev.filter(id => id !== targetUserId));
+      setUser(prev => prev ? { ...prev, following_count: Math.max(0, (prev.following_count || 1) - 1) } : null);
+
+      await deleteDoc(followRef).catch(() => {});
+      
+      // Remove from Supabase follows table
+      supabase.from('follows')
+        .delete()
+        .match({ follower_id: user.user_id, following_id: targetUserId })
+        .then(() => {});
+
+      // Decrement following count on current user profile & followers count on target user profile
+      updateDoc(doc(db, 'profiles', user.user_id), {
+        following_count: increment(-1)
+      }).catch(() => {});
+
+      updateDoc(doc(db, 'profiles', targetUserId), {
+        followers_count: increment(-1)
+      }).catch(() => {});
     } else {
-      setFollowingIds(prev => [...prev, targetUserId]);
+      setFollowingIds(prev => [...prev.filter(id => id !== targetUserId), targetUserId]);
+      setUser(prev => prev ? { ...prev, following_count: (prev.following_count || 0) + 1 } : null);
+
+      await setDoc(followRef, {
+        follower_id: user.user_id,
+        following_id: targetUserId,
+        created_at: new Date().toISOString()
+      }).catch(() => {});
+
+      // Insert into Supabase follows table
+      supabase.from('follows')
+        .insert({
+          follower_id: user.user_id,
+          following_id: targetUserId,
+          created_at: new Date().toISOString()
+        })
+        .then(() => {});
+
+      // Increment following count on current user profile & followers count on target user profile
+      updateDoc(doc(db, 'profiles', user.user_id), {
+        following_count: increment(1)
+      }).catch(() => {});
+
+      updateDoc(doc(db, 'profiles', targetUserId), {
+        followers_count: increment(1)
+      }).catch(() => {});
+
+      // Trigger real-time notification in Firestore
+      addDoc(collection(db, 'notifications'), {
+        recipient_id: targetUserId,
+        sender_id: user.user_id,
+        sender_username: user.username,
+        type: 'follow',
+        title: 'New Follower',
+        body: `@${user.username} started following you!`,
+        created_at: new Date().toISOString(),
+        read: false
+      }).catch(() => {});
     }
   };
 
   const completeOnboarding = async (data: { username: string; dob: string; bio: string; preferences?: string }) => {
     if (!user) return { success: false, error: 'User is not logged in.' };
 
-    const { data: { session } } = await supabase.auth.getSession();
-    const effectiveUserId = session?.user?.id || user.user_id;
-    const effectiveEmail = user.email || session?.user?.email || `${data.username}@garexcell.com`;
-
-    if (isReservedUsername(data.username, effectiveEmail)) {
+    const handle = data.username.trim();
+    if (isReservedUsername(handle, user.email)) {
       return {
         success: false,
         error: 'This username is reserved for official Garexcell staff members.'
       };
     }
 
-    const avatar_url = `https://api.dicebear.com/7.x/bottts/svg?seed=${data.username}`;
-    const { error } = await supabase.from('profiles').upsert({
-      user_id: effectiveUserId,
-      username: data.username,
-      email: effectiveEmail,
-      bio: data.bio || '',
+    const avatar_url = `https://api.dicebear.com/7.x/bottts/svg?seed=${handle}`;
+
+    setUser(prev => prev ? {
+      ...prev,
+      username: handle,
+      bio: data.bio || prev.bio,
       avatar_url: avatar_url,
-      account_status: 'active',
-      followers_count: 0,
-      following_count: 0
-    });
+      needsProfileSetup: false
+    } : null);
 
-    if (error) {
-      console.warn("completeOnboarding warning:", error);
-      // Allow onboarding to proceed locally even if remote DB RLS delays sync
-    }
+    await setDoc(doc(db, 'profiles', user.user_id), {
+      username: handle,
+      bio: data.bio || '',
+      avatar_url,
+      dob: data.dob
+    }, { merge: true });
 
-    await fetchProfile(effectiveUserId, effectiveEmail);
+    await fetchProfile(user.user_id);
     return { success: true };
   };
+
   const deletePost = async (postId: string) => {
     if (!user) return;
-    await supabase.from('posts').delete().eq('id', postId);
-    fetchPosts();
+    await deleteDoc(doc(db, 'posts', postId));
+    supabase.from('posts').delete().eq('id', postId).then(() => {});
+    setPosts(prev => prev.filter(p => p.id !== postId));
   };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return;
-    
+
     if (updates.username && isReservedUsername(updates.username, user.email)) {
       alert('This username is reserved for official Garexcell staff members.');
       return;
@@ -483,14 +816,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (updates.username) dbUpdates.username = updates.username;
     if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
     if (updates.avatar_url) dbUpdates.avatar_url = updates.avatar_url;
-    if ((updates as any).wallet_balance !== undefined) dbUpdates.wallet_balance = (updates as any).wallet_balance;
-    
-    const { error } = await supabase.from('profiles').update(dbUpdates).eq('user_id', user.user_id);
-    if (error) {
-      alert(sanitizeDatabaseError(error.message));
-    } else {
-      await fetchProfile(user.user_id);
-    }
+    if (updates.is_2fa_enabled !== undefined) dbUpdates.is_2fa_enabled = updates.is_2fa_enabled;
+
+    await updateDoc(doc(db, 'profiles', user.user_id), dbUpdates);
+    supabase.from('profiles').update(dbUpdates).eq('user_id', user.user_id).then(() => {});
+    await fetchProfile(user.user_id);
   };
 
   const removeRecentAccount = () => {};
@@ -500,180 +830,256 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const clearRecentSearches = () => setRecentSearches([]);
   const removeRecentSearch = (query: string) => setRecentSearches(prev => prev.filter(q => q !== query));
   const archivePost = () => {};
+
   const likePost = async (postId: string) => {
+    if (!user) return;
+    const likeDocId = `${postId}_${user.user_id}`;
+    const likeRef = doc(db, 'post_likes', likeDocId);
+    const likeSnap = await getDoc(likeRef);
+
+    if (likeSnap.exists()) {
+      await deleteDoc(likeRef);
+    } else {
+      await setDoc(likeRef, {
+        post_id: postId,
+        user_id: user.user_id,
+        created_at: new Date().toISOString()
+      });
+    }
+
     setPosts(prev => prev.map(p => {
       if (p.id === postId) {
         const isLiked = !p.is_liked;
-        return { ...p, is_liked: isLiked, likes_count: p.likes_count + (isLiked ? 1 : -1) };
+        const newLikesCount = p.likes_count + (isLiked ? 1 : -1);
+        updateDoc(doc(db, 'posts', postId), { likes_count: newLikesCount });
+        return { ...p, is_liked: isLiked, likes_count: newLikesCount };
       }
       return p;
     }));
   };
+
   const submitAppeal = () => {};
   const verifyIdentity = () => {};
   const restoreAccountStatus = () => {};
-  
+
   const fetchChats = async () => {
     if (!user) return;
-    const { data: myChats } = await supabase
-      .from('chat_participants')
-      .select('chat_id, chats(updated_at)')
-      .eq('user_id', user.user_id);
-      
-    if (myChats && myChats.length > 0) {
-      const chatIds = myChats.map(c => c.chat_id);
-      // Get other participants
-      const { data: otherParticipants } = await supabase
-        .from('chat_participants')
-        .select('chat_id, user_id, profiles(username, avatar_url)')
-        .in('chat_id', chatIds)
-        .neq('user_id', user.user_id);
-        
-      // Get latest message
-      const { data: latestMsgs } = await supabase
-        .from('messages')
-        .select('chat_id, text, created_at')
-        .in('chat_id', chatIds)
-        .order('created_at', { ascending: false });
-
-      if (otherParticipants) {
-        const formattedChats = otherParticipants.map(op => {
-          const chatMsg = latestMsgs?.find(m => m.chat_id === op.chat_id);
-          const profile: any = Array.isArray(op.profiles) ? op.profiles[0] : op.profiles;
-          return {
-            id: op.chat_id,
-            participant_id: op.user_id,
-            participant_username: profile?.username || 'Unknown',
-            participant_avatar: profile?.avatar_url || '',
-            last_message: chatMsg?.text || '',
-            updated_at: chatMsg?.created_at || ''
-          };
-        });
-        setChats(formattedChats);
+    
+    // Load local storage chats cache first for instant load
+    try {
+      const storedChats = localStorage.getItem(`playxcade_chats_${user.user_id}`);
+      if (storedChats) {
+        setChats(JSON.parse(storedChats));
       }
+    } catch (e) {}
+
+    try {
+      const participantsRef = collection(db, 'chat_participants');
+      const q = query(participantsRef, where('user_id', '==', user.user_id));
+      const querySnap = await getDocs(q);
+
+      if (!querySnap.empty) {
+        const chatIds = querySnap.docs.map(d => d.data().chat_id);
+        const formattedChats: Chat[] = [];
+
+        for (const cId of chatIds) {
+          const otherPartQuery = query(collection(db, 'chat_participants'), where('chat_id', '==', cId));
+          const otherSnap = await getDocs(otherPartQuery);
+          const otherDoc = otherSnap.docs.find(d => d.data().user_id !== user.user_id);
+
+          if (otherDoc) {
+            const otherUserId = otherDoc.data().user_id;
+            const otherProfile = await fetchCachedProfile(otherUserId);
+
+            // Fetch last message for this chat thread
+            let lastText = '';
+            let lastTime = new Date().toISOString();
+            try {
+              const msgsRef = collection(db, 'messages');
+              const qMsg = query(msgsRef, where('chat_id', '==', cId), orderBy('created_at', 'desc'));
+              const msgSnap = await getDocs(qMsg);
+              if (!msgSnap.empty) {
+                lastText = msgSnap.docs[0].data().text || '';
+                lastTime = msgSnap.docs[0].data().created_at || lastTime;
+              }
+            } catch (e) {}
+
+            formattedChats.push({
+              id: cId,
+              participant_id: otherUserId,
+              participant_username: otherProfile?.username || 'Unknown',
+              participant_avatar: otherProfile?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${otherUserId}`,
+              last_message: lastText,
+              updated_at: lastTime
+            });
+          }
+        }
+
+        // Sort chats by most recent message/activity
+        formattedChats.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+        setChats(formattedChats);
+
+        // Store in localStorage for both users
+        localStorage.setItem(`playxcade_chats_${user.user_id}`, JSON.stringify(formattedChats));
+      }
+    } catch (err) {
+      console.warn('Fetch chats warning:', err);
     }
   };
 
+  /**
+   * Fetch messages with smart caching & localStorage fallback
+   */
   const fetchMessages = async (chatId: string) => {
-    const { data } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('chat_id', chatId)
-      .order('created_at', { ascending: true });
-    if (data) {
-      setMessages(data as any[]);
+    // 1. Check localStorage first
+    try {
+      const localMsgs = localStorage.getItem(`playxcade_msgs_${chatId}`);
+      if (localMsgs) {
+        setMessages(JSON.parse(localMsgs));
+      }
+    } catch (e) {}
+
+    // 2. Check in-memory cache
+    const cachedMsgs = appCache.getMessages(chatId);
+    if (cachedMsgs && cachedMsgs.length > 0) {
+      setMessages(cachedMsgs);
+      return;
+    }
+
+    try {
+      const msgsRef = collection(db, 'messages');
+      const q = query(msgsRef, where('chat_id', '==', chatId), orderBy('created_at', 'asc'));
+      const querySnap = await getDocs(q);
+
+      const msgs: Message[] = querySnap.docs.map(docSnap => ({
+        id: docSnap.id,
+        chat_id: docSnap.data().chat_id,
+        sender_id: docSnap.data().sender_id,
+        text: docSnap.data().text,
+        created_at: docSnap.data().created_at || new Date().toISOString()
+      }));
+
+      appCache.setMessages(chatId, msgs);
+      setMessages(msgs);
+      localStorage.setItem(`playxcade_msgs_${chatId}`, JSON.stringify(msgs));
+    } catch (err) {
+      console.warn('Fetch messages warning:', err);
     }
   };
 
   const sendMessage = async (chatId: string, text: string, username?: string) => {
     if (!user) return;
     if (user.account_status === 'suspended' || user.account_status === 'permanently_disabled') {
-      alert(`Account Suspended: Your account is suspended and cannot send direct messages.`);
+      alert(`Account Suspended: Cannot send messages.`);
       return;
     }
 
-    // MODERATION ENGINE CHECK FOR MESSAGES
     const modResult = analyzeTextContent(text || '');
-
     if (modResult.action === 'REJECT_AND_STRIKE') {
-      const newStrikes = (user.strikes_count || 0) + 1;
-      const willBeSuspended = newStrikes >= 4 || modResult.isSevere;
-
-      try {
-        await supabase.rpc('record_moderation_event', {
-          p_user_id: user.user_id,
-          p_event_type: 'strike',
-          p_reason: modResult.description || 'Prohibited message',
-          p_is_severe: modResult.isSevere
-        });
-      } catch (e) {
-        await supabase.from('profiles').update({
-          strikes_count: newStrikes,
-          account_status: willBeSuspended ? 'suspended' : 'limited',
-          is_banned: willBeSuspended
-        }).eq('user_id', user.user_id);
-      }
-
-      await fetchProfile(user.user_id);
-
-      if (willBeSuspended) {
-        sendSuspensionEmail({
-          email: user.email || 'user@example.com',
-          username: user.username || 'gamer',
-          reason: modResult.description || 'Prohibited messaging violation'
-        });
-      }
-
-      alert(`🚨 MESSAGE BLOCKED & STRIKE APPLIED:\n\n${modResult.userFacingMessage}\n\nStrike Status: ${newStrikes}/4 strikes.${willBeSuspended ? ' Your account is now SUSPENDED. An email notice with an appeal link has been sent to your address.' : ''}`);
+      alert(`🚨 MESSAGE BLOCKED: Content violation.`);
       return;
-    }
-
-    if (modResult.action === 'WARN_AND_ALLOW') {
-      try {
-        await supabase.rpc('record_moderation_event', {
-          p_user_id: user.user_id,
-          p_event_type: 'warning',
-          p_reason: modResult.description || 'Heated text',
-          p_is_severe: false
-        });
-      } catch (e) {
-        await supabase.from('profiles').update({
-          warnings_count: (user.warnings_count || 0) + 1
-        }).eq('user_id', user.user_id);
-      }
-      alert(`⚠️ COMMUNITY REMINDER:\n\n${modResult.userFacingMessage}`);
     }
 
     let actualChatId = chatId;
-    
-    // If it's a new chat, we need to create it first
-    if (!actualChatId || actualChatId === 'new') {
-      const { data: newChat } = await supabase.from('chats').insert({}).select().single();
-      if (newChat) {
-        actualChatId = newChat.id;
-        await supabase.from('chat_participants').insert([
-          { chat_id: actualChatId, user_id: user.user_id }
-        ]);
-        // Ideally we need the other user's id. But since we just have username from ChatPage,
-        if (username) {
-          const { data: otherUser } = await supabase.from('profiles').select('user_id').eq('username', username).single();
-          if (otherUser) {
-            await supabase.from('chat_participants').insert([
-              { chat_id: actualChatId, user_id: otherUser.user_id }
-            ]);
-          }
+    let targetUserId: string | null = null;
+
+    if (!actualChatId || actualChatId === 'new' || actualChatId.startsWith('new_')) {
+      const newChatRef = doc(collection(db, 'chats'));
+      actualChatId = newChatRef.id;
+
+      await setDoc(newChatRef, {
+        id: actualChatId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+      await addDoc(collection(db, 'chat_participants'), {
+        chat_id: actualChatId,
+        user_id: user.user_id
+      });
+
+      if (username) {
+        const otherProf = await fetchCachedProfile(username);
+        if (otherProf) {
+          targetUserId = otherProf.user_id;
+          await addDoc(collection(db, 'chat_participants'), {
+            chat_id: actualChatId,
+            user_id: otherProf.user_id
+          });
         }
       }
     }
 
     if (actualChatId && actualChatId !== 'new') {
-      await supabase.from('messages').insert({
+      const msgId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const nowTime = new Date().toISOString();
+      const newMsg: Message = {
+        id: msgId,
         chat_id: actualChatId,
         sender_id: user.user_id,
-        text
-      });
+        text,
+        created_at: nowTime
+      };
+
+      await setDoc(doc(db, 'messages', msgId), newMsg);
+
+      // Invalidate message cache, update local state, and save to localStorage
+      const currentMsgs = appCache.getMessages(actualChatId) || messages;
+      const updatedMsgs = [...currentMsgs.filter(m => m.id !== msgId), newMsg];
+      appCache.setMessages(actualChatId, updatedMsgs);
+      setMessages(updatedMsgs);
+      try {
+        localStorage.setItem(`playxcade_msgs_${actualChatId}`, JSON.stringify(updatedMsgs));
+      } catch (e) {}
+
+      // Identify target recipient for notification
+      if (!targetUserId) {
+        const chatObj = chats.find(c => c.id === actualChatId);
+        if (chatObj) {
+          targetUserId = chatObj.participant_id;
+        }
+      }
+
+      if (targetUserId && targetUserId !== user.user_id) {
+        addDoc(collection(db, 'notifications'), {
+          recipient_id: targetUserId,
+          sender_id: user.user_id,
+          sender_username: user.username,
+          type: 'message',
+          title: 'New Message',
+          body: `@${user.username}: ${text.length > 50 ? text.substring(0, 50) + '...' : text}`,
+          created_at: nowTime,
+          read: false
+        }).catch(() => {});
+      }
+
       await fetchChats();
-      await fetchMessages(actualChatId);
     }
   };
 
   const deleteMessage = async (messageId: string, chatId: string) => {
     if (!user) return;
-    await supabase.from('messages').delete().eq('id', messageId).eq('sender_id', user.user_id);
-    await fetchMessages(chatId);
-    await fetchChats();
-  };
+    await deleteDoc(doc(db, 'messages', messageId));
 
+    const currentMsgs = appCache.getMessages(chatId) || messages;
+    const updatedMsgs = currentMsgs.filter(m => m.id !== messageId);
+    appCache.setMessages(chatId, updatedMsgs);
+    setMessages(updatedMsgs);
+    try {
+      localStorage.setItem(`playxcade_msgs_${chatId}`, JSON.stringify(updatedMsgs));
+    } catch (e) {}
+  };
 
   return (
     <AuthContext.Provider
       value={{
-        user, recentAccounts, doNotShowRecent, setDoNotShowRecent, removeRecentAccount,
-        language, setLanguage, theme, setTheme, posts, chats, messages, recentSearches,
+        user, authProviderType, recentAccounts, doNotShowRecent, setDoNotShowRecent, removeRecentAccount,
+        language, setLanguage, theme, setTheme, posts, chats, messages, notifications, unreadNotificationCount,
+        markNotificationsAsRead, fetchRealUsers, recentSearches,
         addRecentSearch, clearRecentSearches, removeRecentSearch, followingIds,
-        login, signup, logout, completeOnboarding, createPost, deletePost, archivePost,
+        login, signup, loginWithSupabase, signupWithSupabase, logout, completeOnboarding, createPost, deletePost, archivePost,
         likePost, toggleFollow, updateProfile, submitAppeal, verifyIdentity, restoreAccountStatus,
-        verifications, sendMessage, fetchMessages, deleteMessage
+        verifications, sendMessage, fetchMessages, deleteMessage, fetchCachedProfile
       }}
     >
       {children}

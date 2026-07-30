@@ -1,18 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { Settings, Edit3, CheckCircle2, Users, Grid, Archive, Trash2, Calendar, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Settings, Edit3, CheckCircle2, MessageSquare, Upload, Wallet } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
 import { useAuth } from '../context/AuthContext';
 import { PostCard } from '../components/PostCard';
 import { FollowButton } from '../components/FollowButton';
+import { IOSBackButton } from '../components/IOSBackButton';
 import { useUsernameValidation } from '../hooks/useUsernameValidation';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export const ProfilePage: React.FC = () => {
   const { username } = useParams<{ username?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, posts, updateProfile, deletePost, archivePost, followingIds } = useAuth();
+  const { user, posts, updateProfile, followingIds } = useAuth();
 
   const isOwnProfile = !username || (user && user.username.toLowerCase() === username.toLowerCase());
 
@@ -20,13 +23,30 @@ export const ProfilePage: React.FC = () => {
   const isSuspended = username?.toLowerCase() === 'suspended_user' || username?.toLowerCase() === 'banned';
   const isNotFound = username?.toLowerCase() === 'nonexistent' || username?.toLowerCase() === 'unknown';
 
+  const [dbFollowersCount, setDbFollowersCount] = useState<number>(0);
+  const [dbFollowingCount, setDbFollowingCount] = useState<number>(0);
+
+  const targetUserId = isOwnProfile ? (user?.user_id || '') : (username ? 'u_' + username : '');
+
+  useEffect(() => {
+    if (!isOwnProfile && targetUserId) {
+      getDoc(doc(db, 'profiles', targetUserId)).then((snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setDbFollowersCount(data.followers_count || 0);
+          setDbFollowingCount(data.following_count || 0);
+        }
+      }).catch(() => {});
+    }
+  }, [targetUserId, isOwnProfile]);
+
   const profileUser = isOwnProfile
     ? user
     : isSuspended || isNotFound
     ? null
     : {
-        id: 'u_' + username,
-        user_id: 'u_' + username,
+        id: targetUserId,
+        user_id: targetUserId,
         username: username || 'Gamer',
         email: `${username}@garexcell.com`,
         bio: 'Competitive gamer & stream creator on Garexcell Network 🕹️',
@@ -35,13 +55,24 @@ export const ProfilePage: React.FC = () => {
         IsDeleted: false,
         account_status: 'active' as const,
         appeal_status: 'none' as const,
-        IsIdentityVerify: true,
+        IsIdentityVerify: false,
         is_private: false,
-        followers_count: 840,
-        following_count: 120,
-        posts_count: 14,
+        followers_count: dbFollowersCount,
+        following_count: dbFollowingCount,
+        posts_count: 0,
         created_at: new Date().toISOString(),
       };
+
+  const isTargetFollowing = targetUserId ? followingIds.includes(targetUserId) : false;
+
+  // Dynamic live calculation of followers & following
+  const displayedFollowersCount = isOwnProfile
+    ? (user?.followers_count || 0)
+    : Math.max(isTargetFollowing ? 1 : 0, dbFollowersCount + (isTargetFollowing ? 1 : 0));
+
+  const displayedFollowingCount = isOwnProfile
+    ? followingIds.length
+    : dbFollowingCount;
 
   const activeTabParam = searchParams.get('tab') || 'posts';
   const [activeTab, setActiveTab] = useState<string>(activeTabParam);
@@ -78,12 +109,13 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  // Suspended view (avatar alone, username, and "This profile was suspended")
+  // Suspended view
   if (isSuspended) {
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 font-sans">
         <Navbar showLiveIcon={true} />
         <main className="max-w-xl mx-auto px-4 py-20 text-center space-y-6">
+          <IOSBackButton onClick={() => navigate(-1)} label="Back" className="mx-auto" />
           <img
             src={`https://api.dicebear.com/7.x/bottts/svg?seed=${username}`}
             alt={username}
@@ -95,12 +127,6 @@ export const ProfilePage: React.FC = () => {
           <div className="p-4 bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800 rounded-2xl shadow-sm">
             This profile was suspended.
           </div>
-          <button
-            onClick={() => navigate(-1)}
-            className="px-6 py-3 bg-slate-900 text-white font-semibold text-xs rounded-xl shadow-sm transition"
-          >
-            Go Back
-          </button>
         </main>
         <BottomBar />
       </div>
@@ -113,18 +139,13 @@ export const ProfilePage: React.FC = () => {
       <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 font-sans">
         <Navbar showLiveIcon={true} />
         <main className="max-w-xl mx-auto px-4 py-20 text-center space-y-6">
+          <IOSBackButton to="/feed" label="Feed" className="mx-auto" />
           <h1 className="text-2xl font-bold text-slate-900">
             This user is not found
           </h1>
           <p className="text-xs text-slate-500">
             The profile you are looking for does not exist or has been deleted.
           </p>
-          <button
-            onClick={() => navigate('/feed')}
-            className="px-6 py-3 bg-slate-900 text-white font-semibold text-xs rounded-xl shadow-sm transition"
-          >
-            Go Back
-          </button>
         </main>
         <BottomBar />
       </div>
@@ -135,10 +156,17 @@ export const ProfilePage: React.FC = () => {
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 sm:pb-8 font-sans selection:bg-indigo-500 selection:text-white">
       <Navbar showLiveIcon={true} />
 
-      <main className="max-w-2xl mx-auto px-3 sm:px-6 pt-4 space-y-5">
+      <main className="max-w-2xl mx-auto px-3 sm:px-6 pt-4 space-y-4">
         
+        {/* Top Back Nav if viewing another profile */}
+        {!isOwnProfile && (
+          <div className="flex items-center space-x-2">
+            <IOSBackButton onClick={() => navigate(-1)} label="Back" />
+          </div>
+        )}
+
         {/* Profile Header */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
+        <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200 space-y-6">
           <div className="flex items-start justify-between">
             <div className="flex items-center space-x-4">
               <img
@@ -158,13 +186,16 @@ export const ProfilePage: React.FC = () => {
                   )}
                 </div>
 
-                <p className="text-xs text-slate-500 font-medium">{profileUser.email}</p>
-
-                {profileUser.dob && (
-                  <p className="text-[11px] text-slate-400 flex items-center space-x-1">
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>Born: {profileUser.dob}</span>
-                  </p>
+                {isOwnProfile && (
+                  <div className="pt-1">
+                    <Link
+                      to="/wallet"
+                      className="inline-flex items-center space-x-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold hover:bg-emerald-100 transition shadow-xs"
+                    >
+                      <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Wallet: ${user?.wallet_balance || 0}.00</span>
+                    </Link>
+                  </div>
                 )}
               </div>
             </div>
@@ -178,11 +209,20 @@ export const ProfilePage: React.FC = () => {
                 <Settings className="w-5 h-5" />
               </Link>
             ) : (
-              <FollowButton
-                targetUserId={profileUser.user_id}
-                targetUsername={profileUser.username}
-                size="md"
-              />
+              <div className="flex items-center space-x-2">
+                <FollowButton
+                  targetUserId={profileUser.user_id}
+                  targetUsername={profileUser.username}
+                  size="md"
+                />
+                <button
+                  onClick={() => navigate(`/chat/${profileUser.username}`)}
+                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Message</span>
+                </button>
+              </div>
             )}
           </div>
 
@@ -206,7 +246,7 @@ export const ProfilePage: React.FC = () => {
               }}
               className="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition text-center"
             >
-              <p className="text-lg font-bold text-slate-900">{profileUser.followers_count || 840}</p>
+              <p className="text-lg font-bold text-slate-900">{displayedFollowersCount}</p>
               <p className="text-[10px] text-slate-400 font-bold uppercase">Followers</p>
             </button>
 
@@ -218,7 +258,7 @@ export const ProfilePage: React.FC = () => {
               }}
               className="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition text-center"
             >
-              <p className="text-lg font-bold text-slate-900">{profileUser.following_count || 120}</p>
+              <p className="text-lg font-bold text-slate-900">{displayedFollowingCount}</p>
               <p className="text-[10px] text-slate-400 font-bold uppercase">Following</p>
             </button>
           </div>
@@ -246,9 +286,9 @@ export const ProfilePage: React.FC = () => {
               key={tab.id}
               onClick={() => {
                 setActiveTab(tab.id);
-                setSearchParams({});
+                setSearchParams({ tab: tab.id });
               }}
-              className={`py-2 text-xs font-semibold rounded-xl transition ${
+              className={`py-2 text-xs font-extrabold rounded-xl transition ${
                 activeTab === tab.id
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-slate-600 hover:bg-slate-100'
@@ -259,163 +299,171 @@ export const ProfilePage: React.FC = () => {
           ))}
         </div>
 
-        {/* Content: Posts */}
-        {activeTab === 'posts' && (
-          <div className="space-y-4">
-            {userPosts.length > 0 ? (
-              userPosts.map((post) => (
-                <div key={post.id} className="relative group">
-                  <PostCard post={post} />
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                <Grid className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+        {/* Tab Content */}
+        <div className="space-y-4">
+          {activeTab === 'posts' && (
+            userPosts.length === 0 ? (
+              <div className="bg-white rounded-2xl p-8 text-center text-slate-400 space-y-2 border border-slate-200">
                 <p className="font-bold text-slate-800 text-sm">No posts published yet</p>
+                <p className="text-xs">When @{profileUser.username} shares content, it will appear here.</p>
               </div>
-            )}
-          </div>
-        )}
-
-        {/* Content: Media */}
-        {activeTab === 'media' && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {userPosts.filter(p => p.media_url).length > 0 ? (
-              userPosts.filter(p => p.media_url).map((p) => (
-                <div key={p.id} className="aspect-square bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-                  <img src={p.media_url} alt="Media" className="w-full h-full object-cover" />
-                </div>
-              ))
             ) : (
-              <div className="col-span-full text-center py-12 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm text-xs text-slate-500">
-                No media posts found.
-              </div>
-            )}
-          </div>
-        )}
+              userPosts.map((post) => (
+                <PostCard key={post.id} post={post} />
+              ))
+            )
+          )}
 
-        {/* Content: Replies */}
-        {activeTab === 'replies' && (
-          <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm text-xs text-slate-500">
-            No thread replies recorded.
-          </div>
-        )}
-
-        {/* Content: Reposts */}
-        {activeTab === 'reposts' && (
-          <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm text-xs text-slate-500">
-            No reposts recorded.
-          </div>
-        )}
-
-        {/* Follows List Tab (?tab=follows) */}
-        {(activeTab === 'follows' || searchParams.get('tab') === 'follows') && (
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-            <div className="flex border-b border-slate-100 pb-3">
-              <button
-                onClick={() => setFollowsSubTab('followers')}
-                className={`flex-1 py-2 font-semibold text-xs rounded-xl transition ${
-                  followsSubTab === 'followers' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                Followers
-              </button>
-              <button
-                onClick={() => setFollowsSubTab('following')}
-                className={`flex-1 py-2 font-semibold text-xs rounded-xl transition ${
-                  followsSubTab === 'following' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                Following
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {[
-                { username: 'Valkyrie99', bio: 'Tactical FPS Main', verified: true },
-                { username: 'CyberGhost', bio: 'Streamer & Moderator', verified: true },
-                { username: 'ApexHunter', bio: 'Ranked Predator', verified: false },
-                { username: 'NeoMatrix', bio: 'Retro RPG collector', verified: false },
-              ].map((u) => (
-                <Link
-                  key={u.username}
-                  to={`/profile/${u.username}`}
-                  className="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-between transition"
+          {activeTab === 'follows' && (
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-4">
+              <div className="flex space-x-2 border-b border-slate-100 pb-3">
+                <button
+                  onClick={() => setFollowsSubTab('followers')}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${
+                    followsSubTab === 'followers' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
                 >
-                  <div className="flex items-center space-x-3">
-                    <img
-                      src={`https://api.dicebear.com/7.x/bottts/svg?seed=${u.username}`}
-                      alt={u.username}
-                      className="w-10 h-10 rounded-full border border-slate-200 object-cover"
-                    />
-                    <div>
-                      <div className="flex items-center space-x-1">
-                        <span className="font-bold text-xs text-slate-900">@{u.username}</span>
-                        {u.verified && (
-                          <CheckCircle2 className="w-3.5 h-3.5 fill-amber-500 text-white stroke-[2]" />
-                        )}
+                  Followers ({displayedFollowersCount})
+                </button>
+                <button
+                  onClick={() => setFollowsSubTab('following')}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-bold transition ${
+                    followsSubTab === 'following' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  Following ({displayedFollowingCount})
+                </button>
+              </div>
+
+              {followsSubTab === 'followers' ? (
+                displayedFollowersCount === 0 ? (
+                  <p className="font-bold text-slate-500 text-xs py-4 text-center">No followers yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <img
+                          src={`https://api.dicebear.com/7.x/bottts/svg?seed=follower1`}
+                          alt="Follower"
+                          className="w-9 h-9 rounded-full border border-slate-200"
+                        />
+                        <div>
+                          <p className="font-bold text-xs text-slate-900">Community Member</p>
+                          <p className="text-[10px] text-slate-400">Following @{profileUser.username}</p>
+                        </div>
                       </div>
-                      <p className="text-[11px] text-slate-500">{u.bio}</p>
                     </div>
                   </div>
-                  <span className="text-xs font-semibold text-indigo-600">View</span>
-                </Link>
-              ))}
+                )
+              ) : (
+                followingIds && followingIds.length > 0 ? (
+                  <div className="space-y-2">
+                    {followingIds.map((id) => (
+                      <div key={id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <img
+                            src={`https://api.dicebear.com/7.x/bottts/svg?seed=${id}`}
+                            alt={id}
+                            className="w-9 h-9 rounded-full border border-slate-200"
+                          />
+                          <div>
+                            <p className="font-bold text-xs text-slate-900">@{id.replace('u_', '')}</p>
+                            <p className="text-[10px] text-slate-400">Playxcade Gamer</p>
+                          </div>
+                        </div>
+                        <FollowButton targetUserId={id} size="sm" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="font-bold text-slate-500 text-xs py-4 text-center">Not following anyone yet</p>
+                )
+              )}
             </div>
-          </div>
-        )}
-
+          )}
+        </div>
       </main>
 
       {/* Edit Profile Modal */}
       {editModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm font-sans">
-          <form onSubmit={handleSaveProfile} className="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl border border-slate-200 space-y-4">
-            <h3 className="text-lg font-bold text-slate-900">Edit Profile Details</h3>
-            
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-xl border border-slate-200 space-y-4">
+            <h3 className="text-base font-extrabold text-slate-900">Edit Profile</h3>
             {editError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium rounded-xl">
+              <p className="text-xs font-semibold text-rose-600 bg-rose-50 p-2.5 rounded-xl border border-rose-200">
                 {editError}
-              </div>
+              </p>
             )}
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Username</label>
+                <input
+                  type="text"
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
 
-            <div className="space-y-1">
-              <label className="block text-xs font-bold text-slate-700 uppercase">Username Handle</label>
-              <input
-                type="text"
-                value={editUsername}
-                onChange={(e) => setEditUsername(e.target.value)}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-            </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Profile Photo</label>
+                <div className="flex items-center space-x-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <img
+                    src={editAvatar || profileUser?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${profileUser?.username}`}
+                    alt="Profile Preview"
+                    className="w-12 h-12 rounded-full object-cover border border-slate-200 shadow-sm shrink-0"
+                  />
+                  <label className="cursor-pointer px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xs rounded-xl border border-indigo-200 transition inline-flex items-center space-x-1.5">
+                    <Upload className="w-4 h-4" />
+                    <span>Upload Photo</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            if (typeof reader.result === 'string') {
+                              setEditAvatar(reader.result);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
 
-            <div className="space-y-1">
-              <label className="block text-xs font-bold text-slate-700 uppercase">Bio & Tagline</label>
-              <textarea
-                value={editBio}
-                onChange={(e) => setEditBio(e.target.value)}
-                rows={3}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Bio</label>
+                <textarea
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
 
-            <div className="flex gap-3 pt-2">
-              <button
-                type="submit"
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-sm transition"
-              >
-                Save Changes
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditModalOpen(false)}
-                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
+              <div className="flex justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

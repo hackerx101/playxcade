@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import {
-  Globe, Shield, Tv, Check, ArrowLeft, User, Lock, Mail, ChevronRight, Bell, HelpCircle, LogOut, Sparkles, Smartphone, Key, FileText, Activity, Trash2, Link as LinkIcon
+  Globe, Shield, Tv, Check, User, Lock, Mail, ChevronRight, Bell, HelpCircle, LogOut, Sparkles, Smartphone, Key, FileText, Activity, Trash2, Link as LinkIcon, Wallet
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
+import { IOSBackButton } from '../components/IOSBackButton';
 import { useAuth } from '../context/AuthContext';
 import { Language } from '../types';
 
@@ -42,9 +43,7 @@ export const SettingsPage: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [deactivatePassword, setDeactivatePassword] = useState('');
   // 2FA states
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState<boolean>(() => {
-    return localStorage.getItem('garexcell_2fa_enabled') === 'true';
-  });
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState<boolean>(user?.is_2fa_enabled || false);
   const [totpToken, setTotpToken] = useState<string>('');
   const [otpInput, setOtpInput] = useState<string>('');
   const [generatedOtpCode, setGeneratedOtpCode] = useState<string>('');
@@ -101,13 +100,10 @@ export const SettingsPage: React.FC = () => {
         {/* Header */}
         <div className="flex items-center space-x-3 pb-2">
           {screen !== 'main' ? (
-            <button
-              onClick={() => setScreen('main')}
-              className="p-2 bg-white hover:bg-slate-100 rounded-full text-slate-700 shadow-sm border border-slate-200 transition"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-          ) : null}
+            <IOSBackButton onClick={() => setScreen('main')} label="Settings" />
+          ) : (
+            <IOSBackButton onClick={() => navigate('/feed')} label="Feed" />
+          )}
           <div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
               {screen === 'main' && 'Settings & Privacy'}
@@ -159,6 +155,7 @@ export const SettingsPage: React.FC = () => {
         {screen === 'main' && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 divide-y divide-slate-100 overflow-hidden">
             {[
+              { id: 'wallet', title: 'Wallet & Top-Up', desc: 'Virtual currency, vouchers, and balance ($' + (user?.wallet_balance || 0) + '.00)', icon: Wallet, action: () => navigate('/wallet') },
               { id: 'account_center', title: 'Accounts Center', desc: 'All connected accounts and security settings', icon: Shield },
               { id: 'general', title: 'General & Language', desc: 'Interface language and preferences', icon: Globe },
               { id: 'accessibility', title: 'Accessibility', desc: 'Display, font size, and motion', icon: Bell },
@@ -169,7 +166,7 @@ export const SettingsPage: React.FC = () => {
               return (
                 <button
                   key={item.id}
-                  onClick={() => setScreen(item.id as any)}
+                  onClick={() => item.action ? item.action() : setScreen(item.id as any)}
                   className="w-full p-4 hover:bg-slate-50 flex items-center justify-between transition text-left group"
                 >
                   <div className="flex items-center space-x-3.5">
@@ -192,7 +189,7 @@ export const SettingsPage: React.FC = () => {
         {screen === 'account_center' && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 divide-y divide-slate-100 overflow-hidden">
             {[
-              { id: 'personal_details', title: 'Personal Details', desc: 'Manage your contact info, birthday, and identity', icon: User },
+              { id: 'personal_details', title: 'Personal Details', desc: 'Manage your contact info, handle, and bio', icon: User },
               { id: 'connected_services', title: 'Connected Service', desc: 'Google, GitHub, and Discord integrations', icon: LinkIcon },
               { id: 'shared_logins', title: 'Shared Logins', desc: 'Cross-platform account synchronization', icon: Shield },
               { id: 'apps_and_services', title: 'Apps and Service', desc: 'Third-party apps with access to your account', icon: Sparkles },
@@ -395,16 +392,48 @@ export const SettingsPage: React.FC = () => {
         {/* 6. MY INFO AND PERMISSIONS */}
         {screen === 'my_info' && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
-            <h3 className="font-bold text-sm text-slate-900">Your Data & Privacy</h3>
+            <h3 className="font-bold text-sm text-slate-900">Your Data & Privacy Controls</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              You can download a copy of your Garexcell Network data including posts, chat logs, and activity history at any time.
+              You can download a full copy of your account profile details, security events, and activity history in standard JSON format.
             </p>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+              <p className="text-xs font-bold text-slate-800">Archive contents:</p>
+              <ul className="text-[11px] text-slate-500 list-disc list-inside space-y-0.5">
+                <li>Profile details & gamer tag</li>
+                <li>Account security & verification status</li>
+                <li>Network settings & connected devices</li>
+              </ul>
+            </div>
             <button
               type="button"
-              onClick={() => showNotification('Data export archive generated. Download starting...')}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-sm transition"
+              onClick={() => {
+                const exportData = {
+                  account: {
+                    user_id: user?.user_id || 'usr_demo',
+                    username: user?.username || 'gamer',
+                    email: user?.email || 'user@example.com',
+                    bio: user?.bio || '',
+                    account_status: user?.account_status || 'active',
+                    created_at: user?.created_at || new Date().toISOString()
+                  },
+                  exported_at: new Date().toISOString(),
+                  system: 'Playxcade Security & Privacy Portal'
+                };
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `playxcade_data_${user?.username || 'account'}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showNotification('Data archive downloaded successfully.');
+              }}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-sm transition flex items-center justify-center space-x-2"
             >
-              Download My Data Archive
+              <FileText className="w-4 h-4" />
+              <span>Download My Data Archive (.json)</span>
             </button>
           </div>
         )}
@@ -481,8 +510,10 @@ export const SettingsPage: React.FC = () => {
                 type="checkbox"
                 checked={twoFactorEnabled}
                 onChange={(e) => {
-                  setTwoFactorEnabled(e.target.checked);
-                  showNotification(e.target.checked ? '2FA enabled successfully' : '2FA disabled');
+                  const enabled = e.target.checked;
+                  setTwoFactorEnabled(enabled);
+                  updateProfile({ is_2fa_enabled: enabled });
+                  showNotification(enabled ? '2FA enabled successfully' : '2FA disabled');
                 }}
                 className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
               />

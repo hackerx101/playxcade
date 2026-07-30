@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { Plus, Radio, Flame, Sparkles, Filter } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
 import { PostCard } from '../components/PostCard';
 import { CreatePostModal } from '../components/CreatePostModal';
 import { StartStreamModal } from '../components/StartStreamModal';
-import { OnboardingModal } from '../components/OnboardingModal';
 import { MaintenanceBanner } from '../components/MaintenanceBanner';
 import { useAuth } from '../context/AuthContext';
 
@@ -15,8 +15,8 @@ export const FeedPage: React.FC = () => {
   const [streamModalOpen, setStreamModalOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
 
-  // Check if logged in user has incomplete profile (e.g., missing dob or username)
-  const needsOnboarding = user && (!user.dob || !user.username);
+  // Only force setup profile if user explicitly needs profile setup (e.g., SSO missing handle)
+  const needsOnboarding = user && user.needsProfileSetup === true;
 
   const categories = ['All', 'Warlands', 'Apex Overdrive', 'Mythic Clash', 'Gaming'];
 
@@ -102,7 +102,7 @@ export const FeedPage: React.FC = () => {
       <StartStreamModal isOpen={streamModalOpen} onClose={() => setStreamModalOpen(false)} />
       
       {needsOnboarding && (
-        <OnboardingModal isOpen={true} onClose={() => {}} />
+        <Navigate to="/setup-profile" replace />
       )}
 
       <BottomBar />

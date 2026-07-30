@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ShieldAlert, AlertCircle, CheckCircle2, Lock, Mail, Calendar, User, KeyRound, ArrowRight, ShieldCheck, ArrowLeft, Laptop } from 'lucide-react';
+import { ShieldAlert, AlertCircle, CheckCircle2, Lock, Mail, Calendar, User, KeyRound, ArrowRight, ShieldCheck, Laptop } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Footer } from '../components/Footer';
+import { IOSBackButton } from '../components/IOSBackButton';
 
 export const HackedAccountPage: React.FC = () => {
   const navigate = useNavigate();
@@ -105,10 +106,7 @@ export const HackedAccountPage: React.FC = () => {
             <span className="font-bold text-lg text-slate-900">Playxcade</span>
           </Link>
 
-          <Link to="/password/reset" className="inline-flex items-center space-x-1.5 text-xs font-bold text-indigo-600 hover:underline">
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Account Recovery</span>
-          </Link>
+          <IOSBackButton to="/password/reset" label="Account Recovery" />
         </div>
       </header>
 

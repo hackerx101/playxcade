@@ -24,8 +24,8 @@ import { HackedAccountPage } from './pages/HackedAccountPage';
 import { MigratingPage } from './pages/MigratingPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { DeactivatedPage } from './pages/DeactivatedPage';
+import { SetupProfilePage } from './pages/SetupProfilePage';
 import { GeoBlockOverlay } from './components/GeoBlockOverlay';
-import { ProfileSetupModal } from './components/ProfileSetupModal';
 
 // Protected route wrapper that checks if user is logged in and not suspended, deactivated, or migrating
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -54,7 +54,6 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 export default function App() {
   return (
     <AuthProvider>
-      <ProfileSetupModal />
       <GeoBlockOverlay />
       <BrowserRouter>
         <Routes>
@@ -64,6 +63,13 @@ export default function App() {
           <Route path="/migrating" element={<MigratingPage />} />
           <Route path="/auth font" element={<AuthPage />} />
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/sso/third" element={<AuthPage defaultEngine="firebase" />} />
+          <Route path="/ssso/third" element={<AuthPage defaultEngine="firebase" />} />
+          <Route path="/auth/failover" element={<AuthPage />} />
+          <Route path="/auth/supabase" element={<AuthPage />} />
+          <Route path="/setup-profile font" element={<SetupProfilePage />} />
+          <Route path="/setup-profile" element={<SetupProfilePage />} />
+          <Route path="/onboarding" element={<SetupProfilePage />} />
           <Route path="/auth/verify" element={<AuthVerifyPage />} />
           <Route path="/auth/verify/:token" element={<AuthVerifyPage />} />
           <Route path="/password/reset" element={<PasswordResetPage />} />
@@ -168,6 +174,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <PostDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/wallet"
+            element={
+              <ProtectedRoute>
+                <CheckoutPage />
               </ProtectedRoute>
             }
           />

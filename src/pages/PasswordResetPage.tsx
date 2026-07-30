@@ -311,7 +311,7 @@ export const PasswordResetPage: React.FC = () => {
                       <span>I Forgot My Password</span>
                     </p>
                     <p className="text-[11px] text-slate-500 mt-0.5">
-                      Search associated account handles using your email & request a Supabase reset link.
+                      Search associated account handles using your email & request a password reset link.
                     </p>
                   </div>
                 </label>
@@ -392,7 +392,7 @@ export const PasswordResetPage: React.FC = () => {
                       </div>
                       <h3 className="text-base font-extrabold text-slate-900">Password Reset Link Dispatched</h3>
                       <p className="text-xs text-slate-600">
-                        We have sent a Supabase password reset link to <strong>{searchEmail}</strong>. Please check your inbox and click the reset link to choose a new password.
+                        We have sent a password reset link to <strong>{searchEmail}</strong>. Please check your inbox and click the reset link to choose a new password.
                       </p>
                       <button
                         onClick={() => {
@@ -488,7 +488,7 @@ export const PasswordResetPage: React.FC = () => {
                             disabled={loading || !selectedAccountId}
                             className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center justify-center space-x-2"
                           >
-                            <span>{loading ? 'Sending Request...' : 'Send Supabase Password Reset Email'}</span>
+                            <span>{loading ? 'Sending Request...' : 'Send Password Reset Email'}</span>
                             <ArrowRight className="w-4 h-4" />
                           </button>
                         </div>

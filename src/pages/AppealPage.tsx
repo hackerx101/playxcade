@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, ArrowRight, User, Phone, Mail, Calendar } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Footer } from '../components/Footer';
+import { IOSBackButton } from '../components/IOSBackButton';
 
 export const AppealPage: React.FC = () => {
   const { user, submitAppeal } = useAuth();
@@ -30,9 +31,10 @@ export const AppealPage: React.FC = () => {
       <main className="flex-1 flex items-center justify-center p-4 my-8">
         <div className="w-full max-w-lg space-y-6">
           <div className="flex items-center space-x-3 pb-4 border-b border-slate-200">
-            <ShieldAlert className="w-6 h-6 text-indigo-600" />
+            <IOSBackButton onClick={() => navigate(-1)} label="Back" />
+            <ShieldAlert className="w-6 h-6 text-indigo-600 shrink-0" />
             <div>
-              <h1 className="text-xl font-extrabold text-slate-900">Account Appeal Form</h1>
+              <h1 className="text-lg font-extrabold text-slate-900">Account Appeal Form</h1>
             </div>
           </div>
 

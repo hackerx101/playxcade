@@ -10,7 +10,7 @@ export const BottomBar: React.FC = () => {
   const navItems = [
     { to: '/feed', icon: Home, label: getTranslation(language, 'home') },
     { to: '/cloud', icon: Gamepad2, label: 'Cloud' },
-    { to: '/explore', icon: Compass, label: getTranslation(language, 'explore') },
+    { to: '/foryou', icon: Compass, label: getTranslation(language, 'forYou') },
     { to: '/dm', icon: MessageSquare, label: getTranslation(language, 'chat') },
     { to: user ? '/profile' : '/auth', icon: User, label: getTranslation(language, 'profile') },
   ];

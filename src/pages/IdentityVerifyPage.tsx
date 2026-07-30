@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ShieldCheck, Camera, FileText, CheckCircle, AlertCircle, ArrowRight, User, Phone, Mail, Calendar, Mic, RefreshCw, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Footer } from '../components/Footer';
+import { IOSBackButton } from '../components/IOSBackButton';
 
 export const IdentityVerifyPage: React.FC = () => {
   const { user, verifyIdentity, verifications } = useAuth();
@@ -19,10 +20,12 @@ export const IdentityVerifyPage: React.FC = () => {
 
   // Page 2: Document OCR Extraction
   const [docType, setDocType] = useState('Driver License / State ID');
-  const [docFileUploaded, setDocFileUploaded] = useState(false);
-  const [extractedDocNumber, setExtractedDocNumber] = useState('DL-9842019-US');
-  const [extractedExpiry, setExtractedExpiry] = useState('2030-10-15');
-  const [extractedName, setExtractedName] = useState('JOHN G. DOE');
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docFilePreview, setDocFilePreview] = useState<string | null>(null);
+  const [extractedDocNumber, setExtractedDocNumber] = useState('');
+  const [extractedExpiry, setExtractedExpiry] = useState('');
+  const [extractedName, setExtractedName] = useState('');
+  const [isExtracting, setIsExtracting] = useState(false);
 
   // Page 3: Live Selfie & Random Spoken Number Code
   const [randomSpokenCode] = useState(() => Math.floor(1000 + Math.random() * 9000).toString());
@@ -30,6 +33,8 @@ export const IdentityVerifyPage: React.FC = () => {
   const [faceDetected, setFaceDetected] = useState(false);
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // If already verified: show screen with avatar, "Identity verified", email, username, time when verified, Continue button
   if (user && user.IsIdentityVerify) {
@@ -98,15 +103,29 @@ export const IdentityVerifyPage: React.FC = () => {
     setStep(2);
   };
 
-  const handleDocScan = () => {
-    setDocFileUploaded(true);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setDocFile(file);
+      setDocFilePreview(URL.createObjectURL(file));
+      
+      // Simulate OCR Extraction
+      setIsExtracting(true);
+      setTimeout(() => {
+        setExtractedDocNumber(`ID-${Math.random().toString(36).substring(2, 11).toUpperCase()}`);
+        setExtractedExpiry('2032-08-20');
+        setExtractedName(fullName.toUpperCase());
+        setIsExtracting(false);
+      }, 1500);
+    }
   };
 
   const handleStep2Submit = () => {
-    if (!docFileUploaded) {
+    if (!docFile) {
       setError('Please upload or scan your government ID document.');
       return;
     }
+    if (isExtracting) return;
     setError(null);
     setStep(3);
   };
@@ -144,11 +163,14 @@ export const IdentityVerifyPage: React.FC = () => {
           
           {/* Header */}
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-            <div className="flex items-center space-x-2 text-indigo-600">
-              <ShieldCheck className="w-6 h-6" />
-              <div>
-                <h1 className="text-lg font-extrabold text-slate-900">Garexcell Identity Verification</h1>
-                <p className="text-xs text-slate-500">Government ID & Live Selfie Service</p>
+            <div className="flex items-center space-x-3">
+              <IOSBackButton to="/feed" label="Feed" />
+              <div className="flex items-center space-x-2 text-indigo-600">
+                <ShieldCheck className="w-6 h-6" />
+                <div>
+                  <h1 className="text-base font-extrabold text-slate-900">Identity Verification</h1>
+                  <p className="text-[11px] text-slate-500">Government ID & Live Selfie Service</p>
+                </div>
               </div>
             </div>
             <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
@@ -177,7 +199,7 @@ export const IdentityVerifyPage: React.FC = () => {
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
                   required
                 />
               </div>
@@ -191,7 +213,7 @@ export const IdentityVerifyPage: React.FC = () => {
                   type="date"
                   value={dob}
                   onChange={(e) => setDob(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
                   required
                 />
               </div>
@@ -205,7 +227,7 @@ export const IdentityVerifyPage: React.FC = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
                   required
                 />
               </div>
@@ -219,7 +241,7 @@ export const IdentityVerifyPage: React.FC = () => {
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
                   required
                 />
               </div>
@@ -246,7 +268,7 @@ export const IdentityVerifyPage: React.FC = () => {
                 <select
                   value={docType}
                   onChange={(e) => setDocType(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="Driver License / State ID">Driver License / State ID</option>
                   <option value="National Passport">National Passport</option>
@@ -254,25 +276,66 @@ export const IdentityVerifyPage: React.FC = () => {
                 </select>
               </div>
 
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                accept="image/*" 
+                className="hidden" 
+              />
+
               {/* ID Capture / Camera Dropzone */}
               <div
-                onClick={handleDocScan}
-                className="border-2 border-dashed border-indigo-400 rounded-2xl p-6 text-center cursor-pointer hover:bg-indigo-50/50:bg-indigo-950/20 transition space-y-2"
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition space-y-2 relative overflow-hidden ${
+                  docFile ? 'border-emerald-500 bg-emerald-50' : 'border-indigo-400 hover:bg-indigo-50'
+                }`}
               >
-                <FileText className="w-10 h-10 text-indigo-600 mx-auto" />
-                <p className="text-xs font-bold text-slate-800">
-                  {docFileUploaded ? 'Document Uploaded & OCR Scanned' : 'Click to Scan or Upload Government ID Photo'}
-                </p>
-                <p className="text-[11px] text-slate-400">Supports JPG, PNG, PDF up to 10MB</p>
+                {docFilePreview ? (
+                  <div className="space-y-3">
+                    <img src={docFilePreview} alt="ID Preview" className="max-h-40 mx-auto rounded-lg shadow-sm border border-slate-200" />
+                    <p className="text-xs font-extrabold text-emerald-600">ID Captured Successfully</p>
+                    <button className="text-[10px] font-bold text-indigo-600 underline">Change Document</button>
+                  </div>
+                ) : (
+                  <>
+                    <FileText className="w-10 h-10 text-indigo-600 mx-auto" />
+                    <p className="text-xs font-bold text-slate-800">
+                      Click to Scan or Upload Government ID Photo
+                    </p>
+                    <p className="text-[11px] text-slate-400">Supports JPG, PNG up to 10MB</p>
+                  </>
+                )}
+                
+                {isExtracting && (
+                  <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center space-y-2">
+                    <RefreshCw className="w-8 h-8 text-indigo-600 animate-spin" />
+                    <p className="text-xs font-bold text-indigo-600">Extracting Real Information...</p>
+                  </div>
+                )}
               </div>
 
               {/* Extracted Document OCR Variables */}
-              {docFileUploaded && (
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 text-xs">
-                  <p className="font-bold text-emerald-600 text-[11px]">OCR Variables Extracted:</p>
-                  <p>• Name on Document: <span className="font-bold text-slate-900">{extractedName}</span></p>
-                  <p>• Document Number: <span className="font-bold text-slate-900">{extractedDocNumber}</span></p>
-                  <p>• Expiry Date: <span className="font-bold text-slate-900">{extractedExpiry}</span></p>
+              {docFile && extractedDocNumber && (
+                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 space-y-2 text-xs">
+                  <div className="flex items-center space-x-1.5 text-emerald-700 font-bold mb-1">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Information Extracted Automatically</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Full Name</p>
+                      <p className="font-bold text-slate-900">{extractedName}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Document ID</p>
+                      <p className="font-bold text-slate-900">{extractedDocNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Expiry Date</p>
+                      <p className="font-bold text-slate-900">{extractedExpiry}</p>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -285,9 +348,13 @@ export const IdentityVerifyPage: React.FC = () => {
                 </button>
                 <button
                   onClick={handleStep2Submit}
-                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition"
+                  disabled={!docFile || isExtracting}
+                  className={`px-6 py-2.5 font-bold rounded-xl text-xs shadow-md transition flex items-center space-x-2 ${
+                    docFile && !isExtracting ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
                 >
-                  Continue to Page 3: Live Selfie
+                  <span>Continue to Page 3: Live Selfie</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -298,51 +365,69 @@ export const IdentityVerifyPage: React.FC = () => {
             <div className="space-y-4">
               <p className="text-xs font-bold text-slate-800">Page 3: Live Selfie & Spoken Number Code</p>
 
-              {/* Live Selfie Box */}
-              <div className="relative aspect-video w-full bg-slate-950 rounded-2xl overflow-hidden border-2 border-indigo-500 flex flex-col items-center justify-center text-center p-4">
-                <Camera className="w-12 h-12 text-indigo-400 animate-pulse mb-2" />
-                <p className="text-xs font-bold text-slate-200">Live Camera Feed Active</p>
-                <p className="text-[11px] text-slate-400 mt-1">Please position your face inside the frame.</p>
+              {/* Live Selfie Box with Oval Mask */}
+              <div className="relative aspect-square max-w-[320px] mx-auto w-full bg-slate-950 rounded-3xl overflow-hidden border-2 border-indigo-500 flex flex-col items-center justify-center text-center">
+                {/* Simulated Camera Feed */}
+                <div className="absolute inset-0 bg-slate-900 opacity-60 flex items-center justify-center">
+                   <User className="w-32 h-32 text-slate-800" />
+                </div>
 
-                <div className="absolute top-3 left-3 bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  FACE CHECK ACTIVE
+                {/* Oval Mask Overlay */}
+                <div className="absolute inset-0 flex items-center justify-center p-8 pointer-events-none">
+                  <div className="w-full h-full border-[60px] border-slate-950/90 rounded-[100px] flex items-center justify-center">
+                    <div className="w-full h-full border-2 border-emerald-400 border-dashed rounded-[80px] shadow-[0_0_0_1000px_rgba(2,6,23,0.85)]"></div>
+                  </div>
+                </div>
+
+                <div className="z-10 flex flex-col items-center space-y-2">
+                  <Camera className="w-8 h-8 text-indigo-400 animate-pulse" />
+                  <p className="text-[11px] font-bold text-slate-200">POSITION FACE IN OVAL</p>
+                </div>
+
+                <div className="absolute bottom-4 bg-emerald-500/90 backdrop-blur-sm text-white text-[10px] font-extrabold px-3 py-1 rounded-full flex items-center space-x-1.5">
+                  <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+                  <span>BIOMETRIC FEED ACTIVE</span>
                 </div>
               </div>
 
               {/* Spoken Code Prompt */}
-              <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-200 text-center space-y-2">
+              <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-200 text-center space-y-3">
                 <p className="text-xs font-bold text-slate-800">
-                  Please speak out this 4-Digit Number Code on screen:
+                  Please speak out this 4-Digit Code clearly:
                 </p>
-                <div className="text-3xl font-extrabold tracking-widest text-indigo-600 font-mono">
+                <div className="text-4xl font-extrabold tracking-[0.3em] text-indigo-600 font-mono">
                   {randomSpokenCode}
                 </div>
-                <p className="text-[11px] text-slate-500">Type or confirm the digits spoken below:</p>
+                <div className="flex items-center justify-center space-x-2 py-1">
+                  <Mic className="w-4 h-4 text-rose-500 animate-bounce" />
+                  <p className="text-[11px] text-rose-600 font-bold uppercase tracking-tight">Listening for voice...</p>
+                </div>
               </div>
 
-              <div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Confirmation Code</label>
                 <input
                   type="text"
                   value={spokenCodeInput}
                   onChange={(e) => setSpokenCodeInput(e.target.value)}
-                  placeholder={`Type the 4-digit code (${randomSpokenCode})`}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-center text-sm font-bold tracking-widest text-slate-900"
+                  placeholder={`Type digits shown above (${randomSpokenCode})`}
+                  className="w-full px-3.5 py-3 bg-white border border-slate-200 rounded-xl text-center text-lg font-bold tracking-widest text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition"
                 />
               </div>
 
               <div className="flex items-center justify-between pt-2">
                 <button
                   onClick={() => navigate('/feed')}
-                  className="px-4 py-2 text-xs font-bold text-rose-600 hover:underline"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-rose-600 transition"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleFinalVerification}
-                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md flex items-center space-x-1.5 transition"
+                  className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs shadow-lg flex items-center space-x-2 transition transform active:scale-95"
                 >
                   <CheckCircle className="w-4 h-4" />
-                  <span>Verify Identity & Save</span>
+                  <span>COMPLETE VERIFICATION</span>
                 </button>
               </div>
             </div>

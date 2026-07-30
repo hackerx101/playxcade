@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, MessageSquare, Heart, Share2, CornerDownRight } from 'lucide-react';
+import { Send, MessageSquare, Heart, Share2, CornerDownRight } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
 import { PostCard } from '../components/PostCard';
+import { IOSBackButton } from '../components/IOSBackButton';
 import { useAuth } from '../context/AuthContext';
 import { Comment } from '../types';
 
@@ -13,26 +14,7 @@ export const PostDetailPage: React.FC = () => {
   const { posts, user } = useAuth();
 
   const [commentText, setCommentText] = useState('');
-  const [comments, setComments] = useState<Comment[]>([
-    {
-      id: 'c1',
-      post_id: postId || '',
-      user_id: 'usr_2',
-      author_username: 'Valkyrie99',
-      author_avatar: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
-      content: 'Incredible clip! Drop your Warlands loadout settings in the chat please!',
-      created_at: '15m ago',
-    },
-    {
-      id: 'c2',
-      post_id: postId || '',
-      user_id: 'usr_3',
-      author_username: 'CyberGhost',
-      author_avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-      content: 'Garexcell servers run so smooth for this game 🔥',
-      created_at: '1h ago',
-    },
-  ]);
+  const [comments, setComments] = useState<Comment[]>([]);
 
   const targetPost = posts.find((p) => p.id === postId);
 
@@ -60,17 +42,12 @@ export const PostDetailPage: React.FC = () => {
       <main className="max-w-xl mx-auto px-2 sm:px-4 pt-4">
         {/* Top Back Navigation Bar */}
         <div className="flex items-center space-x-3 mb-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100:bg-slate-800 transition"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          <IOSBackButton onClick={() => navigate(-1)} label="Back" />
           <div>
-            <h1 className="font-extrabold text-lg text-slate-900">
-              12-Digit Post #{postId}
+            <h1 className="font-extrabold text-base text-slate-900">
+              Post #{postId}
             </h1>
-            <p className="text-xs text-slate-500">Playxcade Permanent Media Link</p>
+            <p className="text-[11px] text-slate-500">Playxcade Permanent Media Link</p>
           </div>
         </div>
 

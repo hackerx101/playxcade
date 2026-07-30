@@ -28,12 +28,14 @@ export interface UserProfile {
   warnings_count?: number;
   created_at: string;
   needsProfileSetup?: boolean;
+  is_2fa_enabled?: boolean;
 }
 
 export interface Post {
   id: string; // 12-digit string
   user_id: string;
   author_username: string;
+  author_email?: string;
   author_avatar?: string;
   author_is_verified?: boolean;
   caption: string;
@@ -82,6 +84,18 @@ export interface Chat {
   participant_avatar?: string;
   last_message: string;
   updated_at: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  recipient_id: string;
+  sender_id: string;
+  sender_username: string;
+  type: 'follow' | 'message' | 'like' | 'system';
+  title: string;
+  body: string;
+  created_at: string;
+  read: boolean;
 }
 
 export interface IdentityVerification {
