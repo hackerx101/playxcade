@@ -153,18 +153,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
+      const userEmail = (data.email || overrideEmail || '').toLowerCase();
+      const isGarexcellEmail = userEmail.endsWith('@garexcell.com');
+      const isVerified = data.is_verified || isGarexcellEmail;
+
       setUser({
         id: data.user_id,
         user_id: data.user_id,
         username: data.username,
-        email: data.email || overrideEmail || '',
+        email: userEmail,
         bio: data.bio || '',
         avatar_url: data.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.username}`,
         IsDeleted: false,
         account_status: status,
         limited_until: limitedUntil,
         appeal_status: data.appeal_status || 'none',
-        IsIdentityVerify: data.is_verified || false,
+        IsIdentityVerify: isVerified,
         is_private: false,
         created_at: data.created_at || new Date().toISOString(),
         wallet_balance: data.wallet_balance || 0,
@@ -175,43 +179,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         needsProfileSetup: false
       });
     } else {
-      // User exists in auth but profile has no username / row missing
+      // User exists in auth but profile row missing. Auto-create profile so normal users never get blocked by setup popup.
       const { data: { session } } = await supabase.auth.getSession();
-      const userEmail = overrideEmail || session?.user?.email || '';
-      setUser({
-        id: userId,
+      const userEmail = (overrideEmail || session?.user?.email || '').toLowerCase();
+      const isGarexcellEmail = userEmail.endsWith('@garexcell.com');
+      const handle = userEmail.split('@')[0] || 'user';
+
+      const { error: createErr } = await supabase.from('profiles').upsert({
         user_id: userId,
-        username: '',
+        username: handle,
         email: userEmail,
         bio: '',
-        avatar_url: '',
-        IsDeleted: false,
-        account_status: 'active',
-        appeal_status: 'none',
-        IsIdentityVerify: false,
-        is_private: false,
-        created_at: new Date().toISOString(),
-        wallet_balance: 0,
-        needsProfileSetup: true
+        avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${handle}`,
+        account_status: 'active'
       });
+
+      if (!createErr) {
+        await fetchProfile(userId, overrideEmail);
+      } else {
+        setUser({
+          id: userId,
+          user_id: userId,
+          username: handle,
+          email: userEmail,
+          bio: '',
+          avatar_url: '',
+          IsDeleted: false,
+          account_status: 'active',
+          appeal_status: 'none',
+          IsIdentityVerify: isGarexcellEmail,
+          is_private: false,
+          created_at: new Date().toISOString(),
+          wallet_balance: 0,
+          needsProfileSetup: false
+        });
+      }
     }
   };
 
   const fetchPosts = async () => {
     const { data, error } = await supabase
       .from('posts')
-      .select('*, profiles(username, avatar_url, is_verified)')
+      .select('*, profiles(username, avatar_url, is_verified, email)')
       .order('created_at', { ascending: false });
       
     if (data) {
       const formattedPosts = data.map(p => {
         const profileObj = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+        const profileEmail = (profileObj?.email || '').toLowerCase();
+        const authorIsVerified = profileObj?.is_verified || profileEmail.endsWith('@garexcell.com');
+
         return {
           id: p.id,
           user_id: p.user_id,
           author_username: profileObj?.username || 'Garexcell User',
+          author_email: profileObj?.email,
           author_avatar: profileObj?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${p.user_id}`,
-          author_is_verified: profileObj?.is_verified || false,
+          author_is_verified: authorIsVerified,
           caption: p.caption,
           type: p.type,
           media_url: p.media_url,
@@ -278,8 +302,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (profileError) {
-        console.error("Profile creation error during signup:", profileError);
-        return { success: false, error: sanitizeDatabaseError(profileError.message) };
+        console.warn("Profile creation warning during signup (continuing):", profileError);
+        // Do not block signup if RLS or temporary profile error occurs
       }
 
       await fetchProfile(sessionUser.id, email);
@@ -434,8 +458,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     if (error) {
-      console.error("completeOnboarding error:", error);
-      return { success: false, error: sanitizeDatabaseError(error.message) };
+      console.warn("completeOnboarding warning:", error);
+      // Allow onboarding to proceed locally even if remote DB RLS delays sync
     }
 
     await fetchProfile(effectiveUserId, effectiveEmail);

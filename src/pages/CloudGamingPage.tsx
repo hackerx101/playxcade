@@ -2,417 +2,428 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Gamepad2, 
-  Wifi, 
-  Tv, 
-  ShieldCheck, 
-  Lock, 
-  Search, 
+  Play, 
   Sparkles, 
+  Search, 
+  Tv, 
+  Monitor, 
+  Smartphone, 
+  Wifi, 
+  ShieldCheck, 
   SlidersHorizontal, 
+  Star, 
+  ChevronRight, 
+  Flame, 
   Zap, 
-  Cpu, 
+  Award, 
+  Info, 
+  X, 
   CheckCircle2, 
   Clock, 
-  Star, 
-  ArrowLeft,
-  Server,
-  CloudLightning,
-  MonitorPlay,
-  Volume2
+  Layers,
+  HelpCircle,
+  ExternalLink
 } from 'lucide-react';
+import { GAMES_LIST } from '../data/games';
+import { Game } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { Navbar } from '../components/Navbar';
-import { Footer } from '../components/Footer';
-
-interface GameItem {
-  id: string;
-  title: string;
-  genre: string;
-  rating: number;
-  coverImage: string;
-  badge?: string;
-  fps: string;
-  resolution: string;
-  rayTracing: boolean;
-  category: 'featured' | 'action' | 'shooter' | 'rpg' | 'indie';
-}
-
-const CLOUD_GAMES: GameItem[] = [
-  {
-    id: 'cyberpunk-2077',
-    title: 'Cyberpunk 2077: Phantom Liberty',
-    genre: 'Sci-Fi RPG / Action',
-    rating: 4.9,
-    coverImage: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80',
-    badge: '4K ULTRA HDR',
-    fps: '120 FPS',
-    resolution: '4K (3840x2160)',
-    rayTracing: true,
-    category: 'rpg'
-  },
-  {
-    id: 'elden-ring',
-    title: 'Elden Ring: Shadow of the Erdtree',
-    genre: 'Action RPG / Open World',
-    rating: 4.9,
-    coverImage: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=800&q=80',
-    badge: 'MUST PLAY',
-    fps: '120 FPS',
-    resolution: '4K (3840x2160)',
-    rayTracing: true,
-    category: 'rpg'
-  },
-  {
-    id: 'valorant-cloud',
-    title: 'Valorant Cloud Pro Arena',
-    genre: 'Tactical FPS / Competitive',
-    rating: 4.8,
-    coverImage: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=800&q=80',
-    badge: 'LOW LATENCY 12ms',
-    fps: '240 FPS',
-    resolution: '1440p (2560x1440)',
-    rayTracing: false,
-    category: 'shooter'
-  },
-  {
-    id: 'forza-horizon-5',
-    title: 'Forza Horizon 5: Rally Adventure',
-    genre: 'Racing / Simulation',
-    rating: 4.8,
-    coverImage: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=800&q=80',
-    badge: 'DOLBY ATMOS',
-    fps: '120 FPS',
-    resolution: '4K (3840x2160)',
-    rayTracing: true,
-    category: 'featured'
-  },
-  {
-    id: 'street-fighter-6',
-    title: 'Street Fighter VI Ultra',
-    genre: 'Fighting / Multiplayer',
-    rating: 4.7,
-    coverImage: 'https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=800&q=80',
-    badge: 'ROLLBACK NETCODE',
-    fps: '120 FPS',
-    resolution: '4K (3840x2160)',
-    rayTracing: true,
-    category: 'action'
-  },
-  {
-    id: 'hollow-knight-silksong',
-    title: 'Hollow Knight: Silksong',
-    genre: 'Metroidvania / Platformer',
-    rating: 5.0,
-    coverImage: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80',
-    badge: 'INDIE GEM',
-    fps: '120 FPS',
-    resolution: '1440p',
-    rayTracing: false,
-    category: 'indie'
-  }
-];
+import { IgStyleModal } from '../components/IgStyleModal';
+import { BottomBar } from '../components/BottomBar';
 
 export const CloudGamingPage: React.FC = () => {
   const { user } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedRegion, setSelectedRegion] = useState('US-East 01 (Virginia)');
 
-  const filteredGames = CLOUD_GAMES.filter((game) => {
-    const matchesSearch = game.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  const [selectedGame, setSelectedGame] = useState<Game | null>(GAMES_LIST[0]);
+  const [activeCategory, setActiveCategory] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [launchModalGame, setLaunchModalGame] = useState<Game | null>(null);
+  
+  // IG-style modal state for account limit or cloud notice
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
+
+  const categories = ['All', 'Action', 'RPG', 'Shooter', 'Sports', 'Racing', 'Strategy', 'Indie'];
+
+  // Filter games based on search and category
+  const filteredGames = GAMES_LIST.filter((game) => {
+    const matchesCategory = activeCategory === 'All' || game.category.toLowerCase() === activeCategory.toLowerCase();
+    const matchesSearch = game.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           game.genre.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || game.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    return matchesCategory && matchesSearch;
   });
 
+  const featuredGames = GAMES_LIST.slice(0, 5);
+  const trendingGames = GAMES_LIST.filter(g => g.rating >= 4.5);
+  const recentlyAdded = GAMES_LIST.slice(3, 9);
+
+  const handleLaunchGame = (game: Game) => {
+    if (user?.account_status === 'limited') {
+      setModalMessage(`Your account is currently limited (${user.account_limit_reason || 'Policy Notice'}). Cloud gaming sessions are currently restricted.`);
+      setModalOpen(true);
+      return;
+    }
+    setLaunchModalGame(game);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
-      {/* Top Navbar */}
-      <Navbar />
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+      
+      {/* IG-style Modal */}
+      <IgStyleModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Cloud Gaming Notice"
+        message={modalMessage}
+        type="limited"
+        primaryActionLabel="View Account Status"
+        onPrimaryAction={() => window.location.href = '/profile'}
+      />
 
-      {/* Cloud Gaming Status Banner */}
-      <div className="bg-gradient-to-r from-indigo-900/80 via-slate-900 to-slate-950 border-b border-indigo-500/20 px-4 py-3">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
-          
-          {/* User Logged In Info */}
-          <div className="flex items-center space-x-3">
-            <div className="relative">
-              <img
-                src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.username || 'Guest'}`}
-                alt={user?.username || 'Gamer'}
-                className="w-10 h-10 rounded-xl border-2 border-indigo-400/50 object-cover shadow-lg"
-              />
-              <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-950 rounded-full" title="Online" />
-            </div>
-
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold text-slate-400">
-                  {user ? 'Already logged in as' : 'Browsing Cloud as Guest'}
-                </span>
-                <span className="text-sm font-black text-white">
-                  @{user?.username || 'Guest_Gamer'}
-                </span>
-                {user?.IsIdentityVerify && (
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" title="Verified Player" />
-                )}
-              </div>
-              <p className="text-[11px] text-indigo-300/80 font-medium flex items-center space-x-2">
-                <span className="bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded text-[10px] font-bold border border-indigo-500/30">
-                  {user ? 'CLOUDPASS VIP' : 'GUEST MODE'}
-                </span>
-                <span>• Garexcell RTX 4090 Cloud Instance Ready</span>
-                {!user && (
-                  <Link to="/auth" className="text-indigo-400 hover:underline font-bold ml-1">
-                    [Sign In to Sync]
-                  </Link>
-                )}
-              </p>
-            </div>
-          </div>
-
-          {/* Telemetry Quick Badges */}
-          <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-            <div className="bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-lg flex items-center space-x-1.5 text-emerald-400">
-              <Wifi className="w-3.5 h-3.5 animate-pulse" />
-              <span>11ms Ping</span>
-            </div>
-
-            <div className="bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-lg flex items-center space-x-1.5 text-indigo-400">
-              <Server className="w-3.5 h-3.5" />
-              <span>{selectedRegion}</span>
-            </div>
-
-            <div className="bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-lg flex items-center space-x-1.5 text-amber-400">
-              <Gamepad2 className="w-3.5 h-3.5" />
-              <span>Xbox Wireless Controller Connected</span>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 space-y-8">
+      {/* Top Console Navigation Bar */}
+      <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/80 px-4 sm:px-8 py-3.5 flex items-center justify-between">
         
-        {/* Navigation Breadcrumb & Back Link */}
-        <div className="flex items-center justify-between">
-          <Link
-            to="/feed"
-            className="inline-flex items-center space-x-2 text-xs font-bold text-indigo-400 hover:text-indigo-300 transition"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Return to Social Feed</span>
+        {/* Left Brand */}
+        <div className="flex items-center space-x-6">
+          <Link to="/" className="flex items-center space-x-2.5 group">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition transform">
+              <Gamepad2 className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <span className="font-black text-lg text-white tracking-wider uppercase block leading-none">
+                GAREXCELL <span className="text-indigo-400">CLOUD</span>
+              </span>
+              <span className="text-[9px] font-mono font-bold text-slate-400 tracking-widest uppercase">
+                RTX 4090 SUPERCOMPUTER NODE
+              </span>
+            </div>
           </Link>
 
-          <div className="flex items-center space-x-2 text-xs text-slate-400">
-            <CloudLightning className="w-4 h-4 text-indigo-400" />
-            <span className="font-semibold text-slate-200">Playxcade Cloud Engine v3.4</span>
-          </div>
-        </div>
-
-        {/* Hero Showcase Banner */}
-        <div className="relative rounded-3xl overflow-hidden border border-indigo-500/20 bg-slate-900 shadow-2xl">
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent z-10" />
-          <img
-            src="https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1600&q=80"
-            alt="Cyberpunk Cloud Showcase"
-            className="w-full h-80 sm:h-96 object-cover object-center opacity-40 scale-105"
-          />
-
-          <div className="absolute inset-0 z-20 p-6 sm:p-10 flex flex-col justify-end max-w-2xl space-y-4">
-            <div className="flex items-center space-x-2">
-              <span className="bg-indigo-600 text-white font-black text-[10px] tracking-wider uppercase px-2.5 py-1 rounded-full border border-indigo-400/40">
-                Featured Stream
-              </span>
-              <span className="bg-slate-800/80 text-emerald-400 text-xs font-mono px-2.5 py-1 rounded-full border border-slate-700 flex items-center space-x-1">
-                <Zap className="w-3.5 h-3.5" />
-                <span>4K @ 120 FPS HDR</span>
-              </span>
-            </div>
-
-            <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
-              CYBERPUNK 2077: PHANTOM LIBERTY
-            </h1>
-
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed line-clamp-2">
-              Stream full ray-traced Night City instantly with zero downloads. Powered by Garexcell enterprise GPU servers with direct hardware sync.
-            </p>
-
-            {/* Play Button - Explicitly Disabled as requested */}
-            <div className="pt-2 flex flex-wrap items-center gap-3">
+          {/* Quick Category Tabs for Desktop */}
+          <nav className="hidden lg:flex items-center space-x-1 pl-4 border-l border-slate-800">
+            {['Dashboard', 'Browse', 'Library', 'Cloud Pass'].map((tab, idx) => (
               <button
-                disabled={true}
-                className="px-6 py-3.5 bg-slate-800/80 text-slate-400 cursor-not-allowed font-extrabold rounded-2xl text-sm border border-slate-700 flex items-center space-x-2.5 opacity-80 shadow-lg"
-                title="Play button disabled during Cloud Server Provisioning Beta"
+                key={tab}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  idx === 0 
+                    ? 'bg-slate-800 text-white border border-slate-700/80 shadow-sm' 
+                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                }`}
               >
-                <Lock className="w-4 h-4 text-slate-500" />
-                <span>Play in Cloud (Server Provisioning Beta)</span>
+                {tab}
               </button>
-
-              <span className="text-xs font-medium text-slate-400 bg-slate-950/60 border border-slate-800 px-3 py-2 rounded-xl">
-                ⚠️ Play buttons disabled while cloud stream clusters undergo maintenance
-              </span>
-            </div>
-          </div>
+            ))}
+          </nav>
         </div>
 
-        {/* Search and Category Selector */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-slate-900/60 border border-slate-800/80 p-4 rounded-2xl">
+        {/* Search & Profile status */}
+        <div className="flex items-center space-x-3">
           
-          {/* Search Box */}
-          <div className="relative w-full md:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+          {/* Search bar */}
+          <div className="relative hidden sm:block w-48 md:w-64">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search cloud gaming library..."
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
+              placeholder="Search cloud games..."
+              className="w-full pl-9 pr-3 py-1.5 bg-slate-900/90 border border-slate-800 rounded-full text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
             />
           </div>
 
-          {/* Categories */}
-          <div className="flex items-center space-x-2 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
-            {[
-              { id: 'all', label: 'All Titles' },
-              { id: 'rpg', label: 'RPGs & Open World' },
-              { id: 'shooter', label: 'FPS & Shooters' },
-              { id: 'action', label: 'Fighting & Action' },
-              { id: 'indie', label: 'Indie Gems' }
-            ].map((cat) => (
+          {/* User Status Pill */}
+          {user ? (
+            <div className="flex items-center space-x-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full">
+              <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-[10px] flex items-center justify-center uppercase">
+                {user.username ? user.username.charAt(0) : 'U'}
+              </div>
+              <span className="text-xs font-bold text-slate-200 hidden md:inline">
+                @{user.username}
+              </span>
+              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">
+                ULTIMATE
+              </span>
+            </div>
+          ) : (
+            <Link
+              to="/auth"
+              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-full transition shadow-md shadow-indigo-600/30"
+            >
+              Sign In to Play
+            </Link>
+          )}
+
+        </div>
+      </header>
+
+      {/* Main Console Hub */}
+      <main className="flex-1 pb-16">
+        
+        {/* HERO BANNER FEATURED GAME */}
+        {selectedGame && (
+          <section className="relative w-full h-[380px] sm:h-[460px] overflow-hidden border-b border-slate-800/80">
+            {/* Background Image with Gradient Overlay */}
+            <img
+              src={selectedGame.banner_url || selectedGame.thumbnail_url}
+              alt={selectedGame.title}
+              className="absolute inset-0 w-full h-full object-cover object-center filter brightness-90 transition-all duration-700"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-slate-950/20" />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/70 to-transparent" />
+
+            {/* Hero Details Overlay */}
+            <div className="relative max-w-7xl mx-auto h-full px-6 sm:px-8 flex flex-col justify-end pb-10 space-y-4">
+              
+              <div className="flex items-center space-x-2 text-xs font-mono font-bold">
+                <span className="bg-indigo-600 text-white px-2.5 py-0.5 rounded-md uppercase tracking-wider text-[10px] font-black">
+                  FEATURED CLOUD TITLE
+                </span>
+                <span className="bg-slate-900/80 text-slate-300 border border-slate-700/80 px-2.5 py-0.5 rounded-md text-[10px]">
+                  {selectedGame.category}
+                </span>
+                <span className="text-amber-400 flex items-center space-x-1 font-bold">
+                  <Star className="w-3.5 h-3.5 fill-amber-400" />
+                  <span>{selectedGame.rating}</span>
+                </span>
+              </div>
+
+              <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-none drop-shadow-md">
+                {selectedGame.title}
+              </h1>
+
+              <p className="text-xs sm:text-sm text-slate-300 max-w-2xl line-clamp-2 leading-relaxed">
+                {selectedGame.description || 'Experience ultra-low latency cloud streaming powered by Garexcell high-performance server clusters. Play instantly across desktop, mobile, and browser.'}
+              </p>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  onClick={() => handleLaunchGame(selectedGame)}
+                  className="px-7 py-3 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-xl shadow-indigo-600/30 flex items-center space-x-2.5 transition transform"
+                >
+                  <Play className="w-4 h-4 fill-white" />
+                  <span>PLAY WITH CLOUD PASS</span>
+                </button>
+
+                <div className="flex items-center space-x-2 bg-slate-900/90 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-300">
+                  <Monitor className="w-4 h-4 text-indigo-400" />
+                  <span>4K @ 120 FPS Ready</span>
+                </div>
+
+                <div className="flex items-center space-x-2 bg-slate-900/90 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-300">
+                  <Gamepad2 className="w-4 h-4 text-emerald-400" />
+                  <span>Controller Supported</span>
+                </div>
+              </div>
+
+            </div>
+          </section>
+        )}
+
+        {/* CONTENT CONTAINER */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 mt-8 space-y-10">
+          
+          {/* CATEGORY SELECTOR CHIPS */}
+          <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none">
+            {categories.map((cat) => (
               <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${
-                  selectedCategory === cat.id
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition border ${
+                  activeCategory === cat
+                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
+                    : 'bg-slate-900 border-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
-                {cat.label}
+                {cat}
               </button>
             ))}
           </div>
 
-        </div>
+          {/* POPULAR ON CLOUD PASS (CAROUSEL / GRID) */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Flame className="w-5 h-5 text-amber-500" />
+                <h2 className="text-lg font-black text-white tracking-wide uppercase">
+                  Popular On Cloud Pass
+                </h2>
+              </div>
+              <span className="text-xs font-bold text-indigo-400 hover:underline cursor-pointer">
+                View All ({filteredGames.length})
+              </span>
+            </div>
 
-        {/* Games Library Grid */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-extrabold text-white flex items-center space-x-2">
-              <MonitorPlay className="w-5 h-5 text-indigo-400" />
-              <span>Available Cloud Stream Titles ({filteredGames.length})</span>
-            </h2>
-            <span className="text-xs text-slate-400 font-mono">RTX 4090 GPU Node Enabled</span>
-          </div>
+            {/* Game Cards Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {filteredGames.map((game) => (
+                <div
+                  key={game.id}
+                  onClick={() => setSelectedGame(game)}
+                  className={`group relative bg-slate-900 border rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 transform hover:-translate-y-1 hover:shadow-2xl ${
+                    selectedGame?.id === game.id
+                      ? 'border-indigo-500 ring-2 ring-indigo-500/40'
+                      : 'border-slate-800/80 hover:border-slate-700'
+                  }`}
+                >
+                  {/* Poster Thumbnail */}
+                  <div className="aspect-[3/4] relative overflow-hidden bg-slate-950">
+                    <img
+                      src={game.thumbnail_url}
+                      alt={game.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-80" />
+                    
+                    {/* Launch Play Overlay on Hover */}
+                    <div className="absolute inset-0 bg-indigo-900/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center p-2 backdrop-blur-[2px]">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLaunchGame(game);
+                        }}
+                        className="w-11 h-11 bg-white text-indigo-950 rounded-full flex items-center justify-center shadow-lg transform group-hover:scale-110 transition"
+                      >
+                        <Play className="w-5 h-5 fill-indigo-950 ml-0.5" />
+                      </button>
+                    </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredGames.map((game) => (
-              <div
-                key={game.id}
-                className="group bg-slate-900 border border-slate-800/80 rounded-2xl overflow-hidden hover:border-indigo-500/50 transition-all duration-300 flex flex-col justify-between shadow-xl"
-              >
-                {/* Cover Image */}
-                <div className="relative h-48 overflow-hidden bg-slate-950">
-                  <img
-                    src={game.coverImage}
-                    alt={game.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-90"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-black/30" />
-
-                  {/* Badge */}
-                  {game.badge && (
-                    <span className="absolute top-3 left-3 bg-slate-950/90 text-indigo-300 border border-indigo-500/30 font-extrabold text-[10px] px-2.5 py-1 rounded-lg">
-                      {game.badge}
+                    {/* Category Badge top right */}
+                    <span className="absolute top-2 right-2 bg-slate-950/80 backdrop-blur-md text-slate-300 border border-slate-800 text-[9px] font-bold px-2 py-0.5 rounded-md">
+                      {game.category}
                     </span>
-                  )}
+                  </div>
 
-                  {/* Rating */}
-                  <span className="absolute top-3 right-3 bg-slate-950/90 text-amber-400 border border-amber-500/30 font-bold text-xs px-2 py-0.5 rounded-lg flex items-center space-x-1">
-                    <Star className="w-3 h-3 fill-amber-400" />
-                    <span>{game.rating}</span>
-                  </span>
-                </div>
-
-                {/* Content */}
-                <div className="p-5 space-y-3 flex-1 flex flex-col justify-between">
-                  <div>
-                    <p className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider mb-1">
-                      {game.genre}
-                    </p>
-                    <h3 className="text-lg font-extrabold text-white group-hover:text-indigo-300 transition">
+                  {/* Card Label */}
+                  <div className="p-3 space-y-1 bg-slate-900">
+                    <h3 className="text-xs font-bold text-white truncate group-hover:text-indigo-400 transition">
                       {game.title}
                     </h3>
-                  </div>
-
-                  {/* Specs List */}
-                  <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-slate-400 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
-                    <div>
-                      <span className="text-slate-500">FPS: </span>
-                      <span className="text-emerald-400 font-bold">{game.fps}</span>
+                    <div className="flex items-center justify-between text-[10px] text-slate-400">
+                      <span>{game.genre}</span>
+                      <span className="text-amber-400 font-bold flex items-center space-x-0.5">
+                        <Star className="w-2.5 h-2.5 fill-amber-400" />
+                        <span>{game.rating}</span>
+                      </span>
                     </div>
-                    <div>
-                      <span className="text-slate-500">Resolution: </span>
-                      <span className="text-white font-bold">{game.resolution}</span>
-                    </div>
-                  </div>
-
-                  {/* Action Play Button - Disabled as requested */}
-                  <div className="pt-1">
-                    <button
-                      disabled={true}
-                      className="w-full py-3 bg-slate-800/90 text-slate-400 cursor-not-allowed font-bold rounded-xl text-xs border border-slate-700/80 flex items-center justify-center space-x-2 transition opacity-75"
-                      title="Play button disabled during Cloud Beta"
-                    >
-                      <Lock className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Play in Cloud (Disabled)</span>
-                    </button>
                   </div>
                 </div>
+              ))}
+            </div>
+          </section>
+
+          {/* JUMP BACK IN / RECENTLY PLAYED */}
+          <section className="space-y-4 pt-4 border-t border-slate-900">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Clock className="w-5 h-5 text-indigo-400" />
+                <h2 className="text-lg font-black text-white tracking-wide uppercase">
+                  Jump Back In
+                </h2>
               </div>
-            ))}
-          </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {GAMES_LIST.slice(0, 3).map((game) => (
+                <div
+                  key={`jump-${game.id}`}
+                  className="bg-slate-900/90 border border-slate-800 hover:border-indigo-500/50 rounded-2xl p-4 flex items-center space-x-4 transition cursor-pointer group"
+                  onClick={() => handleLaunchGame(game)}
+                >
+                  <img
+                    src={game.thumbnail_url}
+                    alt={game.title}
+                    className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-800"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[10px] font-mono font-bold text-indigo-400 uppercase">
+                      SAVED STATE READY
+                    </span>
+                    <h4 className="text-sm font-extrabold text-white truncate group-hover:text-indigo-400 transition">
+                      {game.title}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 truncate">
+                      {game.genre} • Last active 2h ago
+                    </p>
+                  </div>
+                  <button className="w-10 h-10 bg-indigo-600/20 group-hover:bg-indigo-600 text-indigo-400 group-hover:text-white rounded-xl flex items-center justify-center transition border border-indigo-500/30">
+                    <Play className="w-4 h-4 fill-current ml-0.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+
         </div>
-
-        {/* Cloud Infrastructure Telemetry Footer Panel */}
-        <div className="p-6 bg-slate-900/90 border border-indigo-500/20 rounded-3xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div className="flex items-center space-x-2">
-              <Cpu className="w-5 h-5 text-indigo-400" />
-              <h3 className="text-sm font-extrabold text-white">Garexcell Cloud Stream Health</h3>
-            </div>
-            <span className="text-xs text-emerald-400 font-mono font-bold">100% Operational</span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-              <span className="text-slate-500 block text-[10px]">CURRENT PING</span>
-              <span className="text-emerald-400 font-bold text-sm">11 ms</span>
-            </div>
-
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-              <span className="text-slate-500 block text-[10px]">STREAM BITRATE</span>
-              <span className="text-indigo-300 font-bold text-sm">48.5 Mbps</span>
-            </div>
-
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-              <span className="text-slate-500 block text-[10px]">PACKET LOSS</span>
-              <span className="text-emerald-400 font-bold text-sm">0.00%</span>
-            </div>
-
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-              <span className="text-slate-500 block text-[10px]">CLOUD SAVES</span>
-              <span className="text-amber-400 font-bold text-sm">Synced with Vault</span>
-            </div>
-          </div>
-        </div>
-
       </main>
 
-      {/* Footer */}
-      <Footer />
+      {/* GAME LAUNCH MODAL */}
+      {launchModalGame && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 text-center shadow-2xl overflow-hidden">
+            
+            <button
+              onClick={() => setLaunchModalGame(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 bg-slate-800 rounded-full transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <img
+              src={launchModalGame.thumbnail_url}
+              alt={launchModalGame.title}
+              className="w-24 h-24 rounded-2xl object-cover mx-auto shadow-2xl border-2 border-indigo-500/40"
+            />
+
+            <div className="space-y-1">
+              <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-black px-2.5 py-1 rounded-full uppercase border border-indigo-500/30">
+                Garexcell Cloud Stream Node
+              </span>
+              <h3 className="text-2xl font-black text-white">{launchModalGame.title}</h3>
+              <p className="text-xs text-slate-400">{launchModalGame.genre} • {launchModalGame.category}</p>
+            </div>
+
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3 text-left">
+              <div className="flex items-center justify-between text-xs text-slate-300">
+                <span className="flex items-center space-x-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Cloud Server Allocation</span>
+                </span>
+                <span className="font-mono text-emerald-400 font-bold">READY</span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-300">
+                <span className="flex items-center space-x-2">
+                  <Gamepad2 className="w-4 h-4 text-indigo-400" />
+                  <span>Input Controller</span>
+                </span>
+                <span className="font-mono text-indigo-400 font-bold">Xbox / DualShock</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  alert(`Initializing Garexcell Cloud Session for ${launchModalGame.title}... Full GPU stream allocated.`);
+                  setLaunchModalGame(null);
+                }}
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm rounded-2xl shadow-xl shadow-indigo-600/30 transition flex items-center justify-center space-x-2"
+              >
+                <Play className="w-4 h-4 fill-white" />
+                <span>START CLOUD STREAM</span>
+              </button>
+
+              <button
+                onClick={() => setLaunchModalGame(null)}
+                className="w-full py-2.5 bg-slate-800 text-slate-400 hover:text-white rounded-2xl text-xs font-bold transition"
+              >
+                Cancel
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      <BottomBar />
     </div>
   );
 };

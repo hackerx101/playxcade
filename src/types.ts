@@ -1,7 +1,7 @@
 export type Language = 'en' | 'es' | 'fr' | 'system';
 export type Theme = 'light' | 'dark' | 'auto';
 
-export type AccountStatus = 'active' | 'suspended' | 'disabled' | 'limited' | 'permanently_disabled';
+export type AccountStatus = 'active' | 'suspended' | 'disabled' | 'limited' | 'permanently_disabled' | 'deactivated';
 export type AppealStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
 export interface UserProfile {
@@ -115,4 +115,7 @@ export interface Game {
   players: string;
   description: string;
   rating: number;
+  category?: string;
+  thumbnail_url?: string;
+  banner_url?: string;
 }

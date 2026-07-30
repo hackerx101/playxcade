@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { getFeatureFlags } from './config/featureFlags';
 
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/AuthPage';
@@ -20,11 +21,20 @@ import { AuthVerifyPage } from './pages/AuthVerifyPage';
 import { PasswordResetPage } from './pages/PasswordResetPage';
 import { CloudGamingPage } from './pages/CloudGamingPage';
 import { HackedAccountPage } from './pages/HackedAccountPage';
+import { MigratingPage } from './pages/MigratingPage';
+import { CheckoutPage } from './pages/CheckoutPage';
+import { DeactivatedPage } from './pages/DeactivatedPage';
+import { GeoBlockOverlay } from './components/GeoBlockOverlay';
 import { ProfileSetupModal } from './components/ProfileSetupModal';
 
-// Protected route wrapper that checks if user is logged in and not suspended
+// Protected route wrapper that checks if user is logged in and not suspended, deactivated, or migrating
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const flags = getFeatureFlags();
+
+  if (flags.is_migration || flags.migration_status === 'pending') {
+    return <Navigate to="/migrating" replace />;
+  }
 
   if (!user) {
     return <Navigate to="/auth" replace />;
@@ -34,6 +44,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/suspended" replace />;
   }
 
+  if (user && user.account_status === 'deactivated') {
+    return <Navigate to="/deactivated" replace />;
+  }
+
   return <>{children}</>;
 };
 
@@ -41,11 +55,13 @@ export default function App() {
   return (
     <AuthProvider>
       <ProfileSetupModal />
+      <GeoBlockOverlay />
       <BrowserRouter>
         <Routes>
-          {/* Public Landing, Auth & Cloud Gaming */}
+          {/* Public Landing, Auth & Migration */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/cloud" element={<CloudGamingPage />} />
+          <Route path="/migrating" element={<MigratingPage />} />
           <Route path="/auth font" element={<AuthPage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/auth/verify" element={<AuthVerifyPage />} />
@@ -155,9 +171,26 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/checkout"
+            element={
+              <ProtectedRoute>
+                <CheckoutPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/checkout/:paymentId"
+            element={
+              <ProtectedRoute>
+                <CheckoutPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Suspension & Appeals Flow */}
           <Route path="/suspended" element={<SuspendedPage />} />
+          <Route path="/deactivated" element={<DeactivatedPage />} />
           <Route path="/appeal" element={<AppealPage />} />
           <Route path="/verify" element={<IdentityVerifyPage />} />
           <Route path="/appeal/verify/identity" element={<IdentityVerifyPage />} />

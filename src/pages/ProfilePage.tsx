@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { Settings, Edit3, ShieldCheck, Users, Grid, Archive, Trash2, Copy, Check, Calendar, ArrowLeft, MoreHorizontal, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Settings, Edit3, CheckCircle2, Users, Grid, Archive, Trash2, Calendar, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
 import { useAuth } from '../context/AuthContext';
@@ -12,18 +12,24 @@ export const ProfilePage: React.FC = () => {
   const { username } = useParams<{ username?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, posts, updateProfile, deletePost, archivePost, followingIds, toggleFollow } = useAuth();
+  const { user, posts, updateProfile, deletePost, archivePost, followingIds } = useAuth();
 
   const isOwnProfile = !username || (user && user.username.toLowerCase() === username.toLowerCase());
 
+  // Check if profile exists or is suspended
+  const isSuspended = username?.toLowerCase() === 'suspended_user' || username?.toLowerCase() === 'banned';
+  const isNotFound = username?.toLowerCase() === 'nonexistent' || username?.toLowerCase() === 'unknown';
+
   const profileUser = isOwnProfile
     ? user
+    : isSuspended || isNotFound
+    ? null
     : {
         id: 'u_' + username,
         user_id: 'u_' + username,
         username: username || 'Gamer',
         email: `${username}@garexcell.com`,
-        bio: 'Competitive gamer & stream creator on Playxcade 🕹️',
+        bio: 'Competitive gamer & stream creator on Garexcell Network 🕹️',
         dob: '2001-04-10',
         avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`,
         IsDeleted: false,
@@ -37,14 +43,10 @@ export const ProfilePage: React.FC = () => {
         created_at: new Date().toISOString(),
       };
 
-  const isFollowed = profileUser ? followingIds.includes(profileUser.user_id) : false;
-
-  // Active Tab: 'posts' | 'follows'
-  const activeTabParam = searchParams.get('tab') === 'follows' ? 'follows' : 'posts';
-  const [activeTab, setActiveTab] = useState<'posts' | 'follows'>(activeTabParam);
+  const activeTabParam = searchParams.get('tab') || 'posts';
+  const [activeTab, setActiveTab] = useState<string>(activeTabParam);
   const [followsSubTab, setFollowsSubTab] = useState<'followers' | 'following'>('followers');
 
-  // Edit Profile Modal State
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editUsername, setEditUsername] = useState(profileUser?.username || '');
   const [editBio, setEditBio] = useState(profileUser?.bio || '');
@@ -76,30 +78,83 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  if (!profileUser) return null;
+  // Suspended view (avatar alone, username, and "This profile was suspended")
+  if (isSuspended) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 font-sans">
+        <Navbar showLiveIcon={true} />
+        <main className="max-w-xl mx-auto px-4 py-20 text-center space-y-6">
+          <img
+            src={`https://api.dicebear.com/7.x/bottts/svg?seed=${username}`}
+            alt={username}
+            className="w-24 h-24 rounded-full mx-auto border border-slate-200 object-cover shadow-sm"
+          />
+          <h1 className="text-xl font-bold text-slate-900">
+            @{username}
+          </h1>
+          <div className="p-4 bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800 rounded-2xl shadow-sm">
+            This profile was suspended.
+          </div>
+          <button
+            onClick={() => navigate(-1)}
+            className="px-6 py-3 bg-slate-900 text-white font-semibold text-xs rounded-xl shadow-sm transition"
+          >
+            Go Back
+          </button>
+        </main>
+        <BottomBar />
+      </div>
+    );
+  }
+
+  // Not Found view
+  if (isNotFound || !profileUser) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 font-sans">
+        <Navbar showLiveIcon={true} />
+        <main className="max-w-xl mx-auto px-4 py-20 text-center space-y-6">
+          <h1 className="text-2xl font-bold text-slate-900">
+            This user is not found
+          </h1>
+          <p className="text-xs text-slate-500">
+            The profile you are looking for does not exist or has been deleted.
+          </p>
+          <button
+            onClick={() => navigate('/feed')}
+            className="px-6 py-3 bg-slate-900 text-white font-semibold text-xs rounded-xl shadow-sm transition"
+          >
+            Go Back
+          </button>
+        </main>
+        <BottomBar />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 pb-20 sm:pb-8 transition-colors">
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 sm:pb-8 font-sans selection:bg-indigo-500 selection:text-white">
       <Navbar showLiveIcon={true} />
 
-      <main className="max-w-3xl mx-auto px-3 sm:px-6 pt-4 space-y-5">
+      <main className="max-w-2xl mx-auto px-3 sm:px-6 pt-4 space-y-5">
         
         {/* Profile Header */}
-        <div className="space-y-6 pb-6 border-b border-slate-200">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
           <div className="flex items-start justify-between">
             <div className="flex items-center space-x-4">
               <img
                 src={profileUser.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${profileUser.username}`}
                 alt={profileUser.username}
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover shadow-sm"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border border-slate-200 shadow-sm"
               />
               <div className="space-y-1">
                 <div className="flex items-center space-x-2">
-                  <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900">
+                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                     @{profileUser.username}
                   </h1>
                   {profileUser.IsIdentityVerify && (
-                    <ShieldCheck className="w-5 h-5 text-emerald-500" title="Identity Verified" />
+                    <span className="inline-flex items-center text-amber-500" title="Verified Gold Badge">
+                      <CheckCircle2 className="w-5 h-5 fill-amber-500 text-white stroke-[2]" />
+                    </span>
                   )}
                 </div>
 
@@ -114,11 +169,10 @@ export const ProfilePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Top Right Settings Gear (Navigates to /settings) */}
             {isOwnProfile ? (
               <Link
                 to="/settings"
-                className="p-2.5 text-slate-600 hover:text-indigo-600 transition"
+                className="p-2.5 bg-white hover:bg-slate-50 rounded-xl text-slate-700 shadow-sm border border-slate-200 transition"
                 title="Settings"
               >
                 <Settings className="w-5 h-5" />
@@ -133,15 +187,15 @@ export const ProfilePage: React.FC = () => {
           </div>
 
           {/* Bio */}
-          <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium">
+          <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium bg-slate-50 p-3.5 rounded-xl border border-slate-200">
             {profileUser.bio || 'No bio written yet.'}
           </p>
 
           {/* Stats Bar */}
-          <div className="flex items-center justify-around py-3 border-y border-slate-200 text-center">
-            <div>
-              <p className="text-base font-extrabold text-slate-900">{userPosts.length}</p>
-              <p className="text-[11px] text-slate-500 font-semibold uppercase">Posts</p>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <p className="text-lg font-bold text-slate-900">{userPosts.length}</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase">Posts</p>
             </div>
 
             <button
@@ -150,10 +204,10 @@ export const ProfilePage: React.FC = () => {
                 setFollowsSubTab('followers');
                 setSearchParams({ tab: 'follows' });
               }}
-              className="hover:opacity-80 transition"
+              className="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition text-center"
             >
-              <p className="text-base font-extrabold text-slate-900">{profileUser.followers_count || 120}</p>
-              <p className="text-[11px] text-slate-500 font-semibold uppercase">Followers</p>
+              <p className="text-lg font-bold text-slate-900">{profileUser.followers_count || 840}</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase">Followers</p>
             </button>
 
             <button
@@ -162,18 +216,17 @@ export const ProfilePage: React.FC = () => {
                 setFollowsSubTab('following');
                 setSearchParams({ tab: 'follows' });
               }}
-              className="hover:opacity-80 transition"
+              className="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 transition text-center"
             >
-              <p className="text-base font-extrabold text-slate-900">{profileUser.following_count || 45}</p>
-              <p className="text-[11px] text-slate-500 font-semibold uppercase">Following</p>
+              <p className="text-lg font-bold text-slate-900">{profileUser.following_count || 120}</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase">Following</p>
             </button>
           </div>
 
-          {/* Edit Profile Action */}
           {isOwnProfile && (
             <button
               onClick={() => setEditModalOpen(true)}
-              className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold rounded-xl text-xs flex items-center justify-center space-x-2 transition"
+              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-sm transition flex items-center justify-center space-x-2"
             >
               <Edit3 className="w-4 h-4" />
               <span>Edit Profile Details</span>
@@ -181,62 +234,42 @@ export const ProfilePage: React.FC = () => {
           )}
         </div>
 
-        {/* Tabs: Posts / Follows */}
-        <div className="flex border-b border-slate-200 bg-white rounded-2xl p-1 shadow-sm">
-          <button
-            onClick={() => {
-              setActiveTab('posts');
-              setSearchParams({});
-            }}
-            className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition ${
-              activeTab === 'posts' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-900:text-slate-200'
-            }`}
-          >
-            Posts Carousel Grid ({userPosts.length})
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveTab('follows');
-              setSearchParams({ tab: 'follows' });
-            }}
-            className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition ${
-              activeTab === 'follows' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:text-slate-900:text-slate-200'
-            }`}
-          >
-            Followers & Following List
-          </button>
+        {/* Tab Switcher: Posts, Media, Replies, Reposts */}
+        <div className="bg-white rounded-2xl p-1.5 shadow-sm border border-slate-200 grid grid-cols-4 gap-1">
+          {[
+            { id: 'posts', label: 'Posts' },
+            { id: 'media', label: 'Media' },
+            { id: 'replies', label: 'Replies' },
+            { id: 'reposts', label: 'Reposts' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id);
+                setSearchParams({});
+              }}
+              className={`py-2 text-xs font-semibold rounded-xl transition ${
+                activeTab === tab.id
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* Posts Content */}
+        {/* Content: Posts */}
         {activeTab === 'posts' && (
           <div className="space-y-4">
             {userPosts.length > 0 ? (
               userPosts.map((post) => (
                 <div key={post.id} className="relative group">
                   <PostCard post={post} />
-                  {isOwnProfile && (
-                    <div className="absolute top-4 right-16 flex items-center space-x-2 bg-white/90 backdrop-blur px-2 py-1 rounded-xl shadow-sm border border-slate-200 text-xs">
-                      <button
-                        onClick={() => archivePost(post.id)}
-                        className="p-1 text-slate-500 hover:text-amber-500"
-                        title="Archive"
-                      >
-                        <Archive className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => deletePost(post.id)}
-                        className="p-1 text-slate-500 hover:text-rose-500"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
                 </div>
               ))
             ) : (
-              <div className="text-center py-12 bg-white border border-slate-200 rounded-2xl p-6">
+              <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                 <Grid className="w-8 h-8 text-slate-400 mx-auto mb-2" />
                 <p className="font-bold text-slate-800 text-sm">No posts published yet</p>
               </div>
@@ -244,22 +277,53 @@ export const ProfilePage: React.FC = () => {
           </div>
         )}
 
-        {/* Follows Screen Tab (`profile/username?tab=follows`) */}
-        {activeTab === 'follows' && (
-          <div className="space-y-4">
-            <div className="flex border-b border-slate-200 pb-2">
+        {/* Content: Media */}
+        {activeTab === 'media' && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {userPosts.filter(p => p.media_url).length > 0 ? (
+              userPosts.filter(p => p.media_url).map((p) => (
+                <div key={p.id} className="aspect-square bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+                  <img src={p.media_url} alt="Media" className="w-full h-full object-cover" />
+                </div>
+              ))
+            ) : (
+              <div className="col-span-full text-center py-12 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm text-xs text-slate-500">
+                No media posts found.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Content: Replies */}
+        {activeTab === 'replies' && (
+          <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm text-xs text-slate-500">
+            No thread replies recorded.
+          </div>
+        )}
+
+        {/* Content: Reposts */}
+        {activeTab === 'reposts' && (
+          <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm text-xs text-slate-500">
+            No reposts recorded.
+          </div>
+        )}
+
+        {/* Follows List Tab (?tab=follows) */}
+        {(activeTab === 'follows' || searchParams.get('tab') === 'follows') && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+            <div className="flex border-b border-slate-100 pb-3">
               <button
                 onClick={() => setFollowsSubTab('followers')}
-                className={`flex-1 py-2 text-xs font-bold transition border-b-2 ${
-                  followsSubTab === 'followers' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-600 hover:text-slate-900'
+                className={`flex-1 py-2 font-semibold text-xs rounded-xl transition ${
+                  followsSubTab === 'followers' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
                 Followers
               </button>
               <button
                 onClick={() => setFollowsSubTab('following')}
-                className={`flex-1 py-2 text-xs font-bold transition border-b-2 ${
-                  followsSubTab === 'following' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-600 hover:text-slate-900'
+                className={`flex-1 py-2 font-semibold text-xs rounded-xl transition ${
+                  followsSubTab === 'following' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
                 Following
@@ -267,128 +331,91 @@ export const ProfilePage: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              {[1, 2, 3, 4].map((i) => {
-                const targetName = followsSubTab === 'followers' ? `FollowerGamer_${i}` : `FollowedPro_${i}`;
-                const targetId = `u_gamer_${followsSubTab}_${i}`;
-                return (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                    <Link to={`/profile/${targetName}`} className="flex items-center space-x-3 group min-w-0">
-                      <img
-                        src={`https://api.dicebear.com/7.x/bottts/svg?seed=gamer_${followsSubTab}_${i}`}
-                        alt="avatar"
-                        className="w-10 h-10 rounded-full object-cover border border-slate-200"
-                      />
-                      <div className="min-w-0">
-                        <p className="font-bold text-xs text-slate-900 group-hover:underline truncate">
-                          @{targetName}
-                        </p>
-                        <p className="text-[10px] text-slate-500">Playxcade Gamer Member</p>
+              {[
+                { username: 'Valkyrie99', bio: 'Tactical FPS Main', verified: true },
+                { username: 'CyberGhost', bio: 'Streamer & Moderator', verified: true },
+                { username: 'ApexHunter', bio: 'Ranked Predator', verified: false },
+                { username: 'NeoMatrix', bio: 'Retro RPG collector', verified: false },
+              ].map((u) => (
+                <Link
+                  key={u.username}
+                  to={`/profile/${u.username}`}
+                  className="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-between transition"
+                >
+                  <div className="flex items-center space-x-3">
+                    <img
+                      src={`https://api.dicebear.com/7.x/bottts/svg?seed=${u.username}`}
+                      alt={u.username}
+                      className="w-10 h-10 rounded-full border border-slate-200 object-cover"
+                    />
+                    <div>
+                      <div className="flex items-center space-x-1">
+                        <span className="font-bold text-xs text-slate-900">@{u.username}</span>
+                        {u.verified && (
+                          <CheckCircle2 className="w-3.5 h-3.5 fill-amber-500 text-white stroke-[2]" />
+                        )}
                       </div>
-                    </Link>
-                    <div className="flex items-center space-x-2">
-                      <FollowButton targetUserId={targetId} targetUsername={targetName} size="sm" />
+                      <p className="text-[11px] text-slate-500">{u.bio}</p>
                     </div>
                   </div>
-                );
-              })}
+                  <span className="text-xs font-semibold text-indigo-600">View</span>
+                </Link>
+              ))}
             </div>
           </div>
         )}
+
       </main>
 
       {/* Edit Profile Modal */}
       {editModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md p-6 space-y-4">
-            <h3 className="font-bold text-lg text-slate-900">Edit Profile</h3>
-
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm font-sans">
+          <form onSubmit={handleSaveProfile} className="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl border border-slate-200 space-y-4">
+            <h3 className="text-lg font-bold text-slate-900">Edit Profile Details</h3>
+            
             {editError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-medium">
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium rounded-xl">
                 {editError}
               </div>
             )}
 
-            <form onSubmit={handleSaveProfile} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>Username</span>
-                  <span className="text-[10px] text-slate-400 font-normal">5-15 characters</span>
-                </label>
-                <input
-                  type="text"
-                  value={editUsername}
-                  onChange={(e) => setEditUsername(e.target.value)}
-                  className={`w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-semibold text-slate-900 transition ${
-                    editUsername && usernameValidation.warning
-                      ? 'border-amber-400 focus:ring-amber-400'
-                      : editUsername && usernameValidation.isValid
-                      ? 'border-emerald-400 focus:ring-emerald-400'
-                      : 'border-slate-200 focus:ring-indigo-500'
-                  }`}
-                  required
-                />
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-700 uppercase">Username Handle</label>
+              <input
+                type="text"
+                value={editUsername}
+                onChange={(e) => setEditUsername(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+              />
+            </div>
 
-                {/* Real-time username feedback */}
-                {editUsername.trim() !== '' && usernameValidation.warning && (
-                  <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] font-medium flex items-start space-x-1.5">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <span>{usernameValidation.warning}</span>
-                  </div>
-                )}
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-700 uppercase">Bio & Tagline</label>
+              <textarea
+                value={editBio}
+                onChange={(e) => setEditBio(e.target.value)}
+                rows={3}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
 
-                {editUsername.trim() !== '' && usernameValidation.message && (
-                  <div className="mt-1.5 p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-[11px] font-medium flex items-center space-x-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>{usernameValidation.message}</span>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Bio
-                </label>
-                <textarea
-                  value={editBio}
-                  onChange={(e) => setEditBio(e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Avatar Image URL
-                </label>
-                <input
-                  type="url"
-                  value={editAvatar}
-                  onChange={(e) => setEditAvatar(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900"
-                />
-              </div>
-
-              <p className="text-[10px] text-amber-600 font-medium">
-                Note: Date of Birth cannot be modified after initial creation.
-              </p>
-
-              <div className="pt-2 flex items-center justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setEditModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm"
-                >
-                  Save Profile
-                </button>
-              </div>
-            </form>
-          </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="submit"
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-sm transition"
+              >
+                Save Changes
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditModalOpen(false)}
+                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

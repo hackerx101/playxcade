@@ -1,170 +1,124 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, AlertTriangle, ExternalLink, X, ShieldAlert, Sparkles } from 'lucide-react';
+import { Globe, ShieldAlert, ExternalLink, X } from 'lucide-react';
+import { getFeatureFlags } from '../config/featureFlags';
 
 export const GeoBlockOverlay: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [detectedRegion, setDetectedRegion] = useState<string>('Detecting...');
-  const [isRestricted, setIsRestricted] = useState(false);
+  const [detectedCountryCode, setDetectedCountryCode] = useState<string>('US');
+  const [detectedCountryName, setDetectedCountryName] = useState<string>('United States');
 
   useEffect(() => {
-    // Check local storage override or detect timezone/locale
+    const flags = getFeatureFlags();
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
     const lang = navigator.language || '';
     
-    let country = 'US';
-    let regionName = 'United States';
-
-    if (tz.includes('Pyongyang') || lang.toLowerCase().includes('kp')) {
-      country = 'KP';
-      regionName = 'North Korea (DPRK)';
-    } else if (tz.includes('Moscow') || tz.includes('Kamchatka') || tz.includes('Vladivostok') || lang.toLowerCase().includes('ru')) {
-      country = 'RU';
-      regionName = 'Russian Federation';
-    } else if (tz.includes('El_Salvador') || lang.toLowerCase().includes('sv')) {
-      country = 'SV';
-      regionName = 'El Salvador';
+    let activeCode = flags.region_code || 'US';
+    if (!flags.region_code) {
+      if (tz.includes('Pyongyang') || lang.toLowerCase().includes('kp')) activeCode = 'KP';
+      else if (tz.includes('Moscow') || lang.toLowerCase().includes('ru')) activeCode = 'RU';
+      else if (tz.includes('El_Salvador') || lang.toLowerCase().includes('sv')) activeCode = 'SV';
     }
 
-    setDetectedRegion(regionName);
+    setDetectedCountryCode(activeCode);
+    setDetectedCountryName(getCountryName(activeCode));
 
-    // If restricted country, open overlay by default
-    if (['KP', 'RU', 'SV'].includes(country)) {
-      setIsRestricted(true);
+    if (flags.restricted_regions.includes(activeCode)) {
       setIsOpen(true);
-    } else {
-      // Check if user saved a test state in sessionStorage
-      const testRegion = sessionStorage.getItem('simulated_geo_region');
-      if (testRegion && ['KP', 'RU', 'SV'].includes(testRegion)) {
-        setIsRestricted(true);
-        setIsOpen(true);
-        setDetectedRegion(
-          testRegion === 'KP' ? 'North Korea' : testRegion === 'RU' ? 'Russian Federation' : 'El Salvador'
-        );
-      }
     }
   }, []);
 
-  const handleSimulate = (code: string) => {
-    if (code === 'CLEAR') {
-      sessionStorage.removeItem('simulated_geo_region');
-      setIsRestricted(false);
-      setIsOpen(false);
-      setDetectedRegion('United States / Unrestricted');
-    } else {
-      sessionStorage.setItem('simulated_geo_region', code);
-      setIsRestricted(true);
-      setIsOpen(true);
-      setDetectedRegion(
-        code === 'KP' ? 'North Korea (DPRK)' : code === 'RU' ? 'Russian Federation' : 'El Salvador'
-      );
+  const getCountryName = (code: string) => {
+    switch (code.toUpperCase()) {
+      case 'KP':
+        return 'North Korea (DPRK)';
+      case 'RU':
+        return 'Russian Federation';
+      case 'SV':
+        return 'El Salvador';
+      case 'CN':
+        return 'China';
+      case 'IR':
+        return 'Iran';
+      default:
+        return 'United States';
     }
   };
 
-  if (!isOpen) {
-    // Floating test pill so tester can easily test geo-blocking anytime
-    return (
-      <div className="fixed bottom-4 right-4 z-50 bg-slate-900/90 text-white text-[11px] font-mono px-3 py-1.5 rounded-full border border-slate-700 shadow-xl flex items-center space-x-2">
-        <Globe className="w-3.5 h-3.5 text-indigo-400" />
-        <span>Region: {detectedRegion}</span>
-        <button
-          onClick={() => handleSimulate('KP')}
-          className="hover:text-amber-400 underline font-bold"
-        >
-          Test Geo-Block
-        </button>
-      </div>
-    );
-  }
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 selection:bg-rose-500 selection:text-white">
-      <div className="relative w-full max-w-lg bg-slate-900 border border-rose-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 text-center overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-white text-slate-900 w-full h-full min-h-screen p-6 sm:p-12 flex flex-col justify-between border-8 border-slate-900 overflow-y-auto selection:bg-slate-900 selection:text-white font-sans">
+      
+      {/* Full Screen Header */}
+      <div className="flex items-center justify-between border-b-4 border-slate-900 pb-6">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-slate-900 text-white flex items-center justify-center font-black text-xl">
+            P
+          </div>
+          <div>
+            <span className="font-black text-xl tracking-tight block leading-none">GAREXCELL SOCIAL</span>
+            <span className="text-[10px] font-mono font-bold tracking-widest text-slate-500 uppercase">
+              REGIONAL SERVICE COMPLIANCE OVERLAY
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Center Message Area */}
+      <div className="max-w-3xl w-full mx-auto my-auto py-12 space-y-8 text-left">
         
-        {/* Glow backdrop effect */}
-        <div className="absolute -top-24 -left-24 w-48 h-48 bg-rose-600/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
-
-        {/* Close Button top right */}
-        <button
-          onClick={() => setIsOpen(false)}
-          className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800/80 p-2 rounded-full transition border border-slate-700"
-          title="Dismiss Overlay"
-        >
-          <X className="w-4 h-4" />
-        </button>
-
-        {/* Warning Icon Header */}
-        <div className="w-16 h-16 bg-rose-500/10 border border-rose-500/30 text-rose-500 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
-          <ShieldAlert className="w-8 h-8" />
+        {/* Exact Country Badge */}
+        <div className="inline-flex items-center space-x-2 bg-slate-100 border-2 border-slate-900 px-4 py-2 font-mono text-xs font-black uppercase text-slate-900 shadow-[3px_3px_0px_0px_rgba(15,23,42,1)]">
+          <Globe className="w-4 h-4 text-slate-900 stroke-[2.5]" />
+          <span>EXACT COUNTRY DETECTED: {detectedCountryName} [{detectedCountryCode}]</span>
         </div>
 
-        {/* Text Content */}
-        <div className="space-y-3">
-          <span className="bg-rose-500/20 text-rose-300 font-mono text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-widest border border-rose-500/30">
-            Regional Access Notice ({detectedRegion})
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            Garexcell is not accessible in your region
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
-            Due to local service compliance regulations and regulatory sanctions, Garexcell full platform services are restricted for users located in <strong className="text-rose-400">North Korea</strong>, <strong className="text-rose-400">Russian Federation</strong>, and <strong className="text-rose-400">El Salvador</strong>.
+        {/* Warning Icon & Big Headline */}
+        <div className="space-y-4">
+          <div className="w-16 h-16 bg-rose-50 border-4 border-slate-900 text-slate-900 flex items-center justify-center">
+            <ShieldAlert className="w-9 h-9 text-slate-900 stroke-[2.5]" />
+          </div>
+
+          <h1 className="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight leading-none uppercase">
+            Garexcell is Restricted in {detectedCountryName}
+          </h1>
+
+          <p className="text-base sm:text-lg text-slate-700 font-semibold leading-relaxed max-w-2xl">
+            Due to local service compliance regulations and sanctions, Garexcell full platform services and media feeds are restricted for users located in <strong className="text-slate-900 underline decoration-4 decoration-rose-500">{detectedCountryName}</strong>.
           </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="space-y-3 pt-2">
-          {/* Go to Lite Button */}
+        {/* Informational Box */}
+        <div className="p-6 bg-slate-50 border-4 border-slate-900 space-y-2 font-mono text-xs text-slate-900">
+          <p className="font-bold uppercase tracking-wider text-slate-900">
+            REGULATORY REFERENCE & ACCESS NOTE:
+          </p>
+          <p className="text-slate-600 leading-relaxed font-medium">
+            Standard interactive features, direct messaging, and cloud gaming nodes are suspended in {detectedCountryName}. You can access our light compliance interface at Lite Web portal below.
+          </p>
+        </div>
+
+        {/* Main Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-2">
+          
           <a
             href="https://play.garexcell.com/lite"
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-extrabold rounded-2xl text-sm shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 transition transform active:scale-95"
+            className="flex-1 py-4 px-6 bg-slate-900 hover:bg-slate-800 text-white font-black text-sm border-2 border-slate-900 flex items-center justify-center space-x-2 transition shadow-[5px_5px_0px_0px_rgba(15,23,42,1)]"
           >
-            <span>Go to Lite (https://play.garexcell.com/lite)</span>
-            <ExternalLink className="w-4 h-4" />
+            <span>GO TO LITE </span>
+            <ExternalLink className="w-4 h-4 text-white stroke-[2.5]" />
           </a>
 
-          {/* Close Button */}
-          <button
-            onClick={() => setIsOpen(false)}
-            className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold rounded-2xl text-xs border border-slate-700 transition"
-          >
-            Close & Continue Preview
-          </button>
-        </div>
-
-        {/* Region Tester Bar at Bottom */}
-        <div className="pt-4 border-t border-slate-800/80 text-[11px] text-slate-400 space-y-2">
-          <p className="font-semibold text-slate-500">Simulate Geo Location for Testing:</p>
-          <div className="flex flex-wrap justify-center gap-1.5 font-mono">
-            <button
-              onClick={() => handleSimulate('KP')}
-              className="px-2.5 py-1 bg-slate-950 border border-slate-800 hover:border-rose-500/50 rounded-lg text-rose-300"
-            >
-              North Korea
-            </button>
-            <button
-              onClick={() => handleSimulate('RU')}
-              className="px-2.5 py-1 bg-slate-950 border border-slate-800 hover:border-rose-500/50 rounded-lg text-rose-300"
-            >
-              Russia
-            </button>
-            <button
-              onClick={() => handleSimulate('SV')}
-              className="px-2.5 py-1 bg-slate-950 border border-slate-800 hover:border-rose-500/50 rounded-lg text-rose-300"
-            >
-              El Salvador
-            </button>
-            <button
-              onClick={() => handleSimulate('CLEAR')}
-              className="px-2.5 py-1 bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-lg text-slate-300"
-            >
-              Clear Test
-            </button>
-          </div>
         </div>
 
       </div>
+
+      <div className="border-t-4 border-slate-900 pt-4 text-center font-mono text-[11px] text-slate-500">
+        Garexcell Global Compliance Protocol &copy; 2026
+      </div>
+
     </div>
   );
 };

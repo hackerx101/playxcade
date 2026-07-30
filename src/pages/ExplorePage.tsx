@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, X, Users, Hash, Grid, UserCheck, Flame, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, X, Users, Hash, Grid, UserCheck, Flame, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
 import { useAuth } from '../context/AuthContext';
@@ -15,12 +15,11 @@ interface SearchUser {
   followers: number;
 }
 
-
-
 export const ExplorePage: React.FC = () => {
   const [users, setUsers] = useState<SearchUser[]>([]);
-  React.useEffect(() => {
-    supabase.from('profiles').select('*').limit(20).then(({ data }) => {
+  
+  useEffect(() => {
+    supabase.from('profiles').select('*').limit(30).then(({ data }) => {
       if (data) {
         setUsers(data.map((p: any) => ({
           id: p.user_id,
@@ -32,10 +31,10 @@ export const ExplorePage: React.FC = () => {
       }
     });
   }, []);
+
   const {
     posts,
     followingIds,
-    toggleFollow,
     recentSearches,
     addRecentSearch,
     removeRecentSearch,
@@ -52,19 +51,11 @@ export const ExplorePage: React.FC = () => {
     }
   };
 
-  // User search algorithm:
-  // Sort users so followed persons appear first, filter by username or 4 digits
   const filteredUsers = users.filter((u) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
-    return u.username.toLowerCase().includes(q) || q.length === 4;
-  }).sort((a, b) => {
-    const aFollowed = followingIds.includes(a.id);
-    const bFollowed = followingIds.includes(b.id);
-    if (aFollowed && !bFollowed) return -1;
-    if (!aFollowed && bFollowed) return 1;
-    return 0;
-  }).slice(0, 10); // show 10 persons initial limit
+    return u.username.toLowerCase().includes(q) || u.bio?.toLowerCase().includes(q);
+  }).slice(0, 15);
 
   const filteredPosts = posts.filter((p) => {
     if (!searchQuery.trim()) return true;
@@ -80,10 +71,10 @@ export const ExplorePage: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 pb-20 sm:pb-8 transition-colors">
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 sm:pb-8 font-sans selection:bg-indigo-500 selection:text-white">
       <Navbar showLiveIcon={true} />
 
-      <main className="max-w-3xl mx-auto px-3 sm:px-6 pt-4 space-y-5">
+      <main className="max-w-2xl mx-auto px-3 sm:px-6 pt-4 space-y-6">
         
         {/* Search Bar */}
         <form onSubmit={handleSearchSubmit} className="relative">
@@ -93,183 +84,151 @@ export const ExplorePage: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search users (e.g. 4 digits or name), posts, or #hashtags..."
-              className="w-full pl-11 pr-10 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900"
+              placeholder="Search users, posts, or #hashtags..."
+              className="w-full pl-11 pr-10 py-3.5 bg-white border border-slate-200 rounded-2xl text-xs font-medium text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 text-slate-400 hover:text-slate-600"
+                className="absolute right-3.5 p-1 text-slate-400 hover:text-slate-600"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
         </form>
 
-        {/* Local Storage Recent Search History List */}
-        {recentSearches.length > 0 && !searchQuery && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-2">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Recent Searches
-              </span>
+        {/* Filter Type Pills */}
+        <div className="bg-white rounded-2xl p-1.5 shadow-sm border border-slate-200 grid grid-cols-4 gap-1">
+          {[
+            { id: 'all', label: 'All' },
+            { id: 'users', label: 'Users' },
+            { id: 'posts', label: 'Posts' },
+            { id: 'hashtags', label: 'Hashtags' },
+          ].map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFilterType(f.id as any)}
+              className={`py-2 text-xs font-semibold rounded-xl transition ${
+                filterType === f.id
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Recent Searches */}
+        {recentSearches && recentSearches.length > 0 && !searchQuery && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 uppercase">Recent Searches</span>
               <button
                 onClick={clearRecentSearches}
-                className="text-xs font-bold text-indigo-600 hover:underline"
+                className="text-[10px] text-slate-400 font-semibold uppercase hover:underline"
               >
                 Clear All
               </button>
             </div>
-
             <div className="flex flex-wrap gap-2">
-              {recentSearches.map((term) => (
-                <div
-                  key={term}
-                  className="inline-flex items-center space-x-1.5 px-3 py-1 bg-slate-100 rounded-full text-xs font-semibold text-slate-700 border border-slate-200"
+              {recentSearches.map((term, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSearchQuery(term)}
+                  className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 transition"
                 >
-                  <button
-                    onClick={() => {
-                      setSearchQuery(term);
-                      addRecentSearch(term);
-                    }}
-                    className="hover:underline"
-                  >
-                    {term}
-                  </button>
-                  <button
-                    onClick={() => removeRecentSearch(term)}
-                    className="text-slate-400 hover:text-rose-500 p-0.5"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+                  {term}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Users Section */}
+        {(filterType === 'all' || filterType === 'users') && filteredUsers.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center space-x-2">
+              <Users className="w-4 h-4 text-indigo-600" />
+              <span>Suggested Creators & Users</span>
+            </h2>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+              {filteredUsers.map((u) => (
+                <div
+                  key={u.id}
+                  className="p-4 flex items-center justify-between hover:bg-slate-50 transition"
+                >
+                  <Link to={`/profile/${u.username}`} className="flex items-center space-x-3.5">
+                    <img
+                      src={u.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${u.username}`}
+                      alt={u.username}
+                      className="w-11 h-11 rounded-full border border-slate-200 object-cover"
+                    />
+                    <div>
+                      <div className="flex items-center space-x-1">
+                        <span className="font-bold text-sm text-slate-900">@{u.username}</span>
+                        <CheckCircle2 className="w-3.5 h-3.5 fill-amber-500 text-white stroke-[2]" />
+                      </div>
+                      <p className="text-xs text-slate-500 truncate max-w-[180px] sm:max-w-sm">{u.bio || 'Garexcell Network Creator'}</p>
+                    </div>
+                  </Link>
+
+                  <FollowButton targetUserId={u.id} targetUsername={u.username} size="sm" />
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Filter Tabs */}
-        <div className="flex rounded-xl bg-white p-1 border border-slate-200 shadow-sm">
-          <button
-            onClick={() => setFilterType('all')}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
-              filterType === 'all'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-600 hover:bg-slate-100:bg-slate-800'
-            }`}
-          >
-            All Results
-          </button>
-          <button
-            onClick={() => setFilterType('users')}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
-              filterType === 'users'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-600 hover:bg-slate-100:bg-slate-800'
-            }`}
-          >
-            Gamers & Users
-          </button>
-          <button
-            onClick={() => setFilterType('posts')}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
-              filterType === 'posts'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-600 hover:bg-slate-100:bg-slate-800'
-            }`}
-          >
-            Media Grid
-          </button>
-        </div>
+        {/* Posts & Hashtags Section */}
+        {(filterType === 'all' || filterType === 'posts' || filterType === 'hashtags') && (
+          <div className="space-y-4">
+            <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center space-x-2">
+              <Flame className="w-4 h-4 text-indigo-600" />
+              <span>Trending Network Posts</span>
+            </h2>
 
-        {/* Users Search Results Section */}
-        {(filterType === 'all' || filterType === 'users') && (
-          <section className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
-            <h3 className="font-extrabold text-sm text-slate-900 flex items-center space-x-2">
-              <Users className="w-4 h-4 text-indigo-600" />
-              <span>Gamer Community ({filteredUsers.length})</span>
-            </h3>
+            <div className="space-y-4">
+              {filteredPosts.map((post) => (
+                <div key={post.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Link to={`/profile/${post.author_username}`} className="flex items-center space-x-2.5">
+                      <img
+                        src={post.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${post.author_username}`}
+                        alt={post.author_username}
+                        className="w-8 h-8 rounded-full border border-slate-200 object-cover"
+                      />
+                      <span className="font-bold text-xs text-slate-900">@{post.author_username}</span>
+                    </Link>
+                    <span className="text-[10px] text-slate-400">{post.created_at}</span>
+                  </div>
 
-            <div className="divide-y divide-slate-100">
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map((usr) => {
-                  const isFollowed = followingIds.includes(usr.id);
-                  return (
-                    <div key={usr.id} className="py-3 flex items-center justify-between first:pt-0 last:pb-0">
-                      <Link
-                        to={`/profile/${usr.username}`}
-                        onClick={() => addRecentSearch(usr.username)}
-                        className="flex items-center space-x-3 group min-w-0 flex-1 pr-3"
-                      >
-                        <img
-                          src={usr.avatar}
-                          alt={usr.username}
-                          className="w-10 h-10 rounded-full object-cover border border-slate-200"
-                        />
-                        <div className="min-w-0">
-                          <p className="font-bold text-sm text-slate-900 group-hover:underline truncate">
-                            @{usr.username}
-                          </p>
-                          <p className="text-xs text-slate-500 truncate">{usr.bio}</p>
-                        </div>
-                      </Link>
+                  <p className="text-xs text-slate-800 font-medium leading-relaxed">{post.caption}</p>
 
-                      <FollowButton targetUserId={usr.id} targetUsername={usr.username} size="sm" />
+                  {post.media_url && (
+                    <div className="aspect-video bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
+                      <img src={post.media_url} alt="Media" className="w-full h-full object-cover" />
                     </div>
-                  );
-                })
-              ) : (
-                <div className="py-8 text-center text-slate-500 text-sm">
-                  No gamers found matching your search.
+                  )}
+
+                  {post.hashtags && post.hashtags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {post.hashtags.map((h, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded-lg text-[10px] font-bold text-indigo-600">
+                          #{h}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+              ))}
             </div>
-          </section>
+          </div>
         )}
 
-        {/* Grid View of Posts Section (tapping on a post routes to /post/:postId) */}
-        {(filterType === 'all' || filterType === 'posts') && (
-          <section className="space-y-3">
-            <h3 className="font-extrabold text-sm text-slate-900 flex items-center space-x-2">
-              <Grid className="w-4 h-4 text-indigo-600" />
-              <span>Post Media Grid View</span>
-            </h3>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-              {filteredPosts.length > 0 ? (
-                filteredPosts.map((post) => (
-                  <Link
-                    key={post.id}
-                    to={`/post/${post.id}`}
-                    className="relative aspect-square bg-slate-900 rounded-2xl overflow-hidden group shadow-sm border border-slate-200"
-                  >
-                    {post.media_url ? (
-                      post.type === 'video' ? (
-                        <video src={post.media_url} className="w-full h-full object-cover" />
-                      ) : (
-                        <img src={post.media_url} alt="Grid post" className="w-full h-full object-cover" />
-                      )
-                    ) : (
-                      <div className="w-full h-full p-3 bg-gradient-to-br from-indigo-900 to-slate-900 text-white text-xs font-semibold flex items-center justify-center text-center">
-                        {post.caption}
-                      </div>
-                    )}
-
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold space-x-2">
-                      <span>View #{post.id}</span>
-                    </div>
-                  </Link>
-                ))
-              ) : (
-                <div className="col-span-full py-12 text-center text-slate-500 text-sm">
-                  No media posts available.
-                </div>
-              )}
-            </div>
-          </section>
-        )}
       </main>
 
       <BottomBar />

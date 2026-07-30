@@ -134,6 +134,32 @@ export const AuthPage: React.FC = () => {
     }
   };
 
+  const handleLoginProgress = async () => {
+    setIsAuthenticating(true);
+    setAuthProgress(20);
+    setAuthStatusStep('Authenticating credentials...');
+
+    await new Promise((r) => setTimeout(r, 400));
+    setAuthProgress(55);
+    setAuthStatusStep('Verifying user session & security profile...');
+
+    await new Promise((r) => setTimeout(r, 400));
+    setAuthProgress(85);
+    setAuthStatusStep('Loading network data...');
+
+    const res = await login(email, password);
+    setAuthProgress(100);
+
+    if (res.success) {
+      await new Promise((r) => setTimeout(r, 300));
+      setIsAuthenticating(false);
+      navigate('/feed');
+    } else {
+      setIsAuthenticating(false);
+      setError(res.error || 'Login failed');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -148,17 +174,44 @@ export const AuthPage: React.FC = () => {
       }
       handleSignupProgress();
     } else {
-      const res = await login(email, password);
-      if (res.success) {
-        navigate('/feed');
-      } else {
-        setError(res.error || 'Login failed');
-      }
+      handleLoginProgress();
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between transition-colors">
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col justify-between transition-colors font-sans">
+      {/* Full Screen Authenticating Overlay */}
+      {isAuthenticating && (
+        <div className="fixed inset-0 z-50 bg-white text-slate-900 flex flex-col items-center justify-center p-6 font-sans">
+          <div className="w-full max-w-md bg-white border-4 border-slate-900 p-8 space-y-6 shadow-[8px_8px_0px_0px_rgba(15,23,42,1)] text-center">
+            <div className="w-16 h-16 bg-slate-900 text-white flex items-center justify-center mx-auto border-2 border-slate-900 font-black text-2xl">
+              P
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900">
+                Authenticating...
+              </h2>
+              <p className="text-xs font-mono font-bold text-slate-600">
+                {authStatusStep}
+              </p>
+            </div>
+
+            {/* Rounded Progress Bar */}
+            <div className="w-full bg-slate-100 h-4 rounded-full border-2 border-slate-900 overflow-hidden p-0.5">
+              <div 
+                className="bg-slate-900 h-full rounded-full transition-all duration-300"
+                style={{ width: `${authProgress}%` }}
+              />
+            </div>
+
+            <div className="flex justify-between items-center text-[10px] font-mono font-bold text-slate-500 uppercase">
+              <span>Secure Gateway</span>
+              <span>{authProgress}%</span>
+            </div>
+          </div>
+        </div>
+      )}
       <header className="p-4 border-b border-slate-200 bg-white">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center space-x-2">
@@ -378,10 +431,11 @@ export const AuthPage: React.FC = () => {
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700">
-                      Gamer Bio & Tagline
+                    <label className="block text-xs font-bold text-slate-900 flex items-center space-x-1">
+                      <User className="w-3.5 h-3.5 text-slate-900 stroke-[2.5]" />
+                      <span>Profile Bio & Tagline</span>
                     </label>
-                    <span className="text-[10px] font-mono font-bold text-slate-400">
+                    <span className="text-[10px] font-mono font-bold text-slate-500">
                       {bio.length}/250
                     </span>
                   </div>
@@ -390,31 +444,9 @@ export const AuthPage: React.FC = () => {
                     value={bio}
                     onChange={(e) => setBio(e.target.value.slice(0, 250))}
                     rows={3}
-                    placeholder="Tell the Garexcell community about your favorite games, favorite platforms, playstyle, or streaming schedule..."
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 text-slate-900 resize-none font-medium"
+                    placeholder="Tell the Garexcell community about your favorite games, platforms, or playstyle..."
+                    className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-900 rounded-none text-xs focus:ring-0 text-slate-900 resize-none font-medium shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]"
                   />
-
-                  {/* Preset Bio Chips */}
-                  <div className="mt-2 space-y-1">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quick Presets:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        '🎮 Competitive FPS & Tactical Shooter Main',
-                        '🚀 Livestreamer & Content Creator',
-                        '🛡️ eSports Competitor & Mod',
-                        '🏆 Casual RPG Explorer & Achievement Hunter'
-                      ].map((preset) => (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => setBio(preset)}
-                          className="px-2 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 rounded-lg text-[10px] font-bold transition border border-slate-200/80"
-                        >
-                          {preset}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </>
             )}

@@ -6,6 +6,7 @@ import { PostCard } from '../components/PostCard';
 import { CreatePostModal } from '../components/CreatePostModal';
 import { StartStreamModal } from '../components/StartStreamModal';
 import { OnboardingModal } from '../components/OnboardingModal';
+import { MaintenanceBanner } from '../components/MaintenanceBanner';
 import { useAuth } from '../context/AuthContext';
 
 export const FeedPage: React.FC = () => {
@@ -27,6 +28,7 @@ export const FeedPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 pb-20 sm:pb-8 transition-colors">
+      <MaintenanceBanner />
       <Navbar onStartStream={() => setStreamModalOpen(true)} showLiveIcon={true} />
 
       {/* Main Feed Container */}

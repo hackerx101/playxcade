@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Heart, MessageSquare, Share2, MoreVertical, RefreshCw, Flame, Tag, Flag, EyeOff, Copy, Film, Image as ImageIcon } from 'lucide-react';
+import { Heart, MessageSquare, Share2, MoreVertical, RefreshCw, Flame, Tag, Flag, EyeOff, Copy, Film, Image as ImageIcon, ShieldCheck } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
 import { useAuth } from '../context/AuthContext';
@@ -110,7 +110,12 @@ export const ForYouPage: React.FC = () => {
                     className="w-10 h-10 rounded-full border-2 border-indigo-500 object-cover"
                   />
                   <div>
-                    <p className="font-bold text-sm text-white group-hover:underline">@{post.author_username}</p>
+                    <p className="font-bold text-sm text-white group-hover:underline flex items-center space-x-1">
+                      <span>@{post.author_username}</span>
+                      {post.author_is_verified && (
+                        <ShieldCheck className="w-4 h-4 text-emerald-400" title="Identity Verified" />
+                      )}
+                    </p>
                     <p className="text-[10px] text-indigo-300">Playxcade Creator</p>
                   </div>
                 </Link>

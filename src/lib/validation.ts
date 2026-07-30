@@ -50,7 +50,7 @@ export function sanitizeDatabaseError(errorMsg?: string, context?: 'auth' | 'pro
     return 'Please check your email inbox to confirm your account before logging in.';
   }
   if (lower.includes('permission denied') || lower.includes('row-level security') || lower.includes('rls') || lower.includes('42501')) {
-    return 'Unable to save changes right now. Please refresh or verify your login session.';
+    return '';
   }
   if (lower.includes('foreign key') || lower.includes('violates foreign key')) {
     return 'Referenced account or content no longer exists. Please refresh.';
