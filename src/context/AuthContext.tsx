@@ -606,78 +606,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user?.user_id]);
 
   /**
-   * PRIMARY FIREBASE AUTH - Login
+   * SUPABASE AUTH - Login
    */
   const login = async (email: string, password?: string) => {
-    if (!password) return { success: false, error: 'Password required' };
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      setAuthProviderType('firebase');
-      if (userCredential.user) {
-        await fetchProfile(userCredential.user.uid, email);
-      }
-      return { success: true };
-    } catch (err: any) {
-      console.warn('Firebase login failed, trying fallback:', err);
-      // Attempt failover login via Supabase
-      return await loginWithSupabase(email, password);
-    }
+    return await loginWithSupabase(email, password);
   };
 
   /**
-   * PRIMARY FIREBASE AUTH - Signup
+   * SUPABASE AUTH - Signup
    */
   const signup = async (email: string, password?: string, username?: string, dob?: string, bio?: string) => {
-    if (!password) return { success: false, error: 'Password required' };
-    const handle = username?.trim() || email.split('@')[0];
-
-    if (isReservedUsername(handle, email)) {
-      return {
-        success: false,
-        error: 'This username is reserved for official Garexcell staff members.'
-      };
-    }
-
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const firebaseUser = userCredential.user;
-      setAuthProviderType('firebase');
-
-      if (firebaseUser) {
-        const avatar_url = `https://api.dicebear.com/7.x/bottts/svg?seed=${handle}`;
-
-        // Create profile document in Firestore
-        await setDoc(doc(db, 'profiles', firebaseUser.uid), {
-          user_id: firebaseUser.uid,
-          username: handle,
-          email: email.toLowerCase(),
-          bio: bio || '',
-          avatar_url,
-          account_status: 'active',
-          followers_count: 0,
-          following_count: 0,
-          dob: dob || null,
-          created_at: new Date().toISOString()
-        }, { merge: true });
-
-        // Backup creation in Supabase
-        supabase.from('profiles').upsert({
-          user_id: firebaseUser.uid,
-          username: handle,
-          email: email.toLowerCase(),
-          bio: bio || '',
-          avatar_url,
-          account_status: 'active',
-          dob: dob || null
-        }).then(() => {});
-
-        await fetchProfile(firebaseUser.uid, email);
-      }
-      return { success: true };
-    } catch (err: any) {
-      console.warn('Firebase signup failed, trying Supabase signup:', err);
-      return await signupWithSupabase(email, password, username, dob, bio);
-    }
+    return await signupWithSupabase(email, password, username, dob, bio);
   };
 
   /**
@@ -1455,16 +1394,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return updated;
       });
 
-      // Store in Firebase Firestore ONLY if it is not a system calling message
-      if (!isCallMsg) {
-        await setDoc(doc(db, 'messages', msgId), newMsgDoc);
+      // Store in Firebase Firestore for real-time delivery to the recipient
+      await setDoc(doc(db, 'messages', msgId), newMsgDoc);
 
-        // Increment sent messages count for free users
-        if (PAY_TO_SEND_UNLIMITED_MESSAGES && !isUpgraded) {
-          const storageKey = `garexcell_msg_count_${user.user_id}`;
-          const sentCount = Number(localStorage.getItem(storageKey) || '0');
-          localStorage.setItem(storageKey, String(sentCount + 1));
-        }
+      // Increment sent messages count for free users if not a call message
+      if (PAY_TO_SEND_UNLIMITED_MESSAGES && !isUpgraded && !isCallMsg) {
+        const storageKey = `garexcell_msg_count_${user.user_id}`;
+        const sentCount = Number(localStorage.getItem(storageKey) || '0');
+        localStorage.setItem(storageKey, String(sentCount + 1));
       }
 
       // Identify target recipient for notification
