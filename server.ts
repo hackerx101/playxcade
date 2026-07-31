@@ -1,9 +1,11 @@
 import express from 'express';
 import path from 'path';
+import http from 'http';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { Resend } from 'resend';
 import dotenv from 'dotenv';
+import { WebSocketServer, WebSocket } from 'ws';
 
 dotenv.config();
 
@@ -150,7 +152,7 @@ app.post('/api/gemini/summarize', async (req, res) => {
       contents: prompt,
     });
     
-    res.json({ summary: result.text() });
+    res.json({ summary: result.text || 'No summary generated.' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -178,8 +180,63 @@ app.post('/api/cloudflare/calls/new', async (req, res) => {
   }
 });
 
+interface ClientConnection {
+  ws: WebSocket;
+  userId: string;
+  username: string;
+  roomId: string;
+}
+
+const clients = new Map<WebSocket, ClientConnection>();
+
 // Vite middleware setup
 async function startServer() {
+  const server = http.createServer(app);
+
+  const wss = new WebSocketServer({ server, path: '/ws' });
+
+  wss.on('connection', (ws: WebSocket) => {
+    ws.on('message', (messageRaw: string) => {
+      try {
+        const data = JSON.parse(messageRaw.toString());
+
+        if (data.type === 'register') {
+          clients.set(ws, {
+            ws,
+            userId: data.userId,
+            username: data.username,
+            roomId: data.roomId || 'general',
+          });
+          return;
+        }
+
+        const sender = clients.get(ws);
+        if (!sender) return;
+
+        // Relay signaling messages (call-offer, call-answer, ice-candidate, etc.)
+        if (data.targetUserId) {
+          for (const [clientWs, clientInfo] of clients.entries()) {
+            if (clientInfo.userId === data.targetUserId && clientWs.readyState === WebSocket.OPEN) {
+              clientWs.send(JSON.stringify({ ...data, senderId: sender.userId, senderUsername: sender.username }));
+            }
+          }
+        } else if (data.roomId) {
+          for (const [clientWs, clientInfo] of clients.entries()) {
+            if (clientInfo.roomId === data.roomId && clientWs !== ws && clientWs.readyState === WebSocket.OPEN) {
+              clientWs.send(JSON.stringify({ ...data, senderId: sender.userId, senderUsername: sender.username }));
+            }
+          }
+        }
+      } catch (err) {
+        console.error('WebSocket message parsing error:', err);
+      }
+    });
+
+    ws.on('close', () => {
+      clients.delete(ws);
+    });
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -194,7 +251,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }

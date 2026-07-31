@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Globe, Shield, Tv, Check, User, Lock, Mail, ChevronRight, Bell, HelpCircle, LogOut, Sparkles, Smartphone, Key, FileText, Activity, Trash2, Link as LinkIcon, Wallet, 
 Users } from 'lucide-react';
@@ -13,6 +13,11 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, language, setLanguage, updateProfile, logout } = useAuth();
+
+  const showNotification = (msg: string) => {
+    setNotification(msg);
+    setTimeout(() => setNotification(null), 3000);
+  };
 
   // Screen navigation state
   const [screen, setScreen] = useState<
@@ -648,7 +653,7 @@ export const SettingsPage: React.FC = () => {
                   <button
                     key={item.key}
                     onClick={() => {
-                      setLanguage(item.key as Language);
+                      setLanguage(item.key as any);
                       showNotification(`Language set to ${item.label}`);
                     }}
                     className={`w-full p-3.5 rounded-xl border flex items-center justify-between text-xs font-semibold transition ${

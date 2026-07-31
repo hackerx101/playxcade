@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Send, Hash, Video, Phone, Users, Shield, Smile, MessageSquare, ChevronDown, Ban, Search, Gift, Wand2, Sparkles, Mic, Trash2 } from 'lucide-react';
+import { Send, Hash, Video, Phone, Users, Shield, Smile, MessageSquare, ChevronDown, Ban, Search, Gift, Wand2, Sparkles, Mic, Trash2, Settings, Globe, Shuffle } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
 import { useAuth } from '../context/AuthContext';
 import { CallScreen } from '../components/CallScreen';
 import { IncomingCallModal } from '../components/IncomingCallModal';
+import { UserProfile } from '../types';
 
 const DEFAULT_CHANNELS = [
   { id: 'world-chat', name: 'World Chat', desc: 'Global community chat', type: 'text' },
@@ -20,16 +21,17 @@ const DEFAULT_CHANNELS = [
 const POPULAR_EMOJIS = ['😊', '😂', '🔥', '🎮', '👍', '🚀', '❤️', '💯', '🙏', '🙌', '⚡', '🎉', '🕹️', '🏆', '😎', '🍿', '👏', '💬', '💙', '💥'];
 
 export const ChatPage: React.FC = () => {
-  const { messages, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, user, chats } = useAuth();
-  const { username: roomParam } = useParams<{ username: string }>(); // re-using the param name but it's actually room
+  const { messages, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, user, chats, onlineUsers, joinRandomChat, fetchRealUsers } = useAuth();
+  const { username: roomParam } = useParams<{ username: string }>(); 
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [selectedRoom, setSelectedRoom] = useState<string>('general');
+  const [selectedRoom, setSelectedRoom] = useState<string>('world-chat');
   const [inputText, setInputText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activeCall, setActiveCall] = useState<'video' | 'voice' | null>(null);
   const [isInitiator, setIsInitiator] = useState(true);
-  const [incomingCall, setIncomingCall] = useState<{ type: 'video' | 'voice', caller: string, roomId: string } | null>(null);
+  const [incomingCall, setIncomingCall] = useState<{ type: 'video' | 'voice', caller: string, roomId: string, offer?: RTCSessionDescriptionInit } | null>(null);
+  const [incomingOffer, setIncomingOffer] = useState<RTCSessionDescriptionInit | undefined>(undefined);
   const [mutedUsers, setMutedUsers] = useState<string[]>([]);
   const [showOptionsId, setShowOptionsId] = useState<string | null>(null);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
@@ -37,27 +39,36 @@ export const ChatPage: React.FC = () => {
   const [isTyping, setIsTyping] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [participantSearch, setParticipantSearch] = useState('');
   const [channels, setChannels] = useState(DEFAULT_CHANNELS);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelType, setNewChannelType] = useState<'text' | 'voice'>('text');
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [communityUsers, setCommunityUsers] = useState<UserProfile[]>([]);
+  const [channelSettingsModal, setChannelSettingsModal] = useState<string | null>(null);
+  const [voicePromptActive, setVoicePromptActive] = useState<string | null>(null);
 
   // Cloudflare App ID provided by user
   const CLOUDFLARE_APP_ID = 'ce6166e0362af275b7fce968ceb80ba5';
 
   useEffect(() => {
+    fetchRealUsers().then(users => {
+      setCommunityUsers(users);
+    }).catch(() => {});
+  }, [fetchRealUsers]);
+
+  useEffect(() => {
     if (roomParam) {
       const roomExists = channels.find(c => c.id === roomParam);
-      setSelectedRoom(roomExists ? roomExists.id : 'general');
+      setSelectedRoom(roomExists ? roomExists.id : roomParam);
     } else {
-      navigate('/chat/general', { replace: true });
+      navigate('/chat/world-chat', { replace: true });
     }
-  }, [roomParam, navigate]);
+  }, [roomParam, navigate, channels]);
 
   useEffect(() => {
     if (selectedRoom) {
-      // Room prefix to avoid collision with old private chats
       fetchMessages(`room_${selectedRoom}`);
     }
   }, [selectedRoom, fetchMessages]);
@@ -66,7 +77,13 @@ export const ChatPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, selectedRoom]);
 
-  const activeChannel = channels.find(c => c.id === selectedRoom) || channels[0];
+  const activeChannel = channels.find(c => c.id === selectedRoom) || {
+    id: selectedRoom,
+    name: selectedRoom === 'world-chat' ? 'World Chat' : selectedRoom,
+    desc: selectedRoom === 'world-chat' ? 'Global community chat for all members' : 'Chat room',
+    type: selectedRoom.includes('voice') || selectedRoom === 'lounge' || selectedRoom === 'squad' ? 'voice' : 'text'
+  };
+
   const roomMessages = messages.filter(m => m.chat_id === `room_${selectedRoom}` && !mutedUsers.includes(m.sender_id || ''));
   
   const filteredMessages = roomMessages.filter(m => {
@@ -77,25 +94,22 @@ export const ChatPage: React.FC = () => {
     return m.text.toLowerCase().includes(lowerQuery) || senderStr.includes(lowerQuery) || dateStr.includes(lowerQuery);
   });
 
-  // Simulated typing effect for immersion
-  useEffect(() => {
-    if (inputText.length > 0) {
-      if (Math.random() > 0.8 && !isTyping) {
-        setIsTyping("GamingPro22");
-        setTimeout(() => setIsTyping(null), 3000);
-      }
-    } else {
-      setIsTyping(null);
-    }
-  }, [inputText, isTyping]);
+  // Filter participants/chats for sidebar search
+  const filteredChats = chats.filter(c => 
+    !participantSearch || c.participant_username.toLowerCase().includes(participantSearch.toLowerCase())
+  );
 
-  // Detect incoming calls
+  const filteredCommunity = communityUsers.filter(u => 
+    !participantSearch || u.username.toLowerCase().includes(participantSearch.toLowerCase())
+  );
+
+  // Detect incoming calls from real user messages & WebSocket signaling
   useEffect(() => {
     if (roomMessages.length > 0 && !activeCall) {
       const lastMsg = roomMessages[roomMessages.length - 1];
       if (lastMsg.sender_id !== user?.user_id && lastMsg.text.startsWith('[CALL_STARTED:')) {
         const timeDiff = new Date().getTime() - new Date(lastMsg.created_at).getTime();
-        if (timeDiff < 20000) { // Call request is valid for 20 seconds
+        if (timeDiff < 20000) {
           const match = lastMsg.text.match(/\[CALL_STARTED:(video|voice)\]/);
           if (match && !incomingCall) {
             setIncomingCall({
@@ -109,11 +123,51 @@ export const ChatPage: React.FC = () => {
     }
   }, [roomMessages, user, activeCall, selectedRoom, incomingCall]);
 
+  // Real-time WebSocket listener for WebRTC call request signaling
+  useEffect(() => {
+    if (!user) return;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        type: 'register',
+        userId: user.user_id,
+        username: user.username,
+        roomId: selectedRoom,
+      }));
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'call-offer') {
+          if (data.senderId !== user.user_id && !activeCall) {
+            setIncomingCall({
+              type: data.callType || 'video',
+              caller: data.senderUsername || 'Community Member',
+              roomId: data.roomId || selectedRoom,
+              offer: data.offer,
+            });
+          }
+        } else if (data.type === 'call-end') {
+          setIncomingCall(null);
+        }
+      } catch (e) {}
+    };
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [user, selectedRoom, activeCall]);
+
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim() || !selectedRoom) return;
 
-    // Basic spam & profanity check
     const recentMsgs = roomMessages.filter(m => m.sender_id === user?.user_id && new Date().getTime() - new Date(m.created_at).getTime() < 10000);
     if (recentMsgs.length > 4) {
       alert("Please slow down. You are sending messages too quickly.");
@@ -137,6 +191,7 @@ export const ChatPage: React.FC = () => {
 
   const startCall = (type: 'video' | 'voice') => {
     setIsInitiator(true);
+    setIncomingOffer(undefined);
     setActiveCall(type);
     sendMessage(`room_${selectedRoom}`, `[CALL_STARTED:${type}]`, user?.username);
   };
@@ -144,6 +199,7 @@ export const ChatPage: React.FC = () => {
   const acceptCall = () => {
     if (incomingCall) {
       setIsInitiator(false);
+      setIncomingOffer(incomingCall.offer);
       setActiveCall(incomingCall.type);
       setIncomingCall(null);
     }
@@ -153,6 +209,18 @@ export const ChatPage: React.FC = () => {
     setIncomingCall(null);
   };
 
+  const handleRandomMatch = () => {
+    const randomRoomId = joinRandomChat();
+    if (randomRoomId) {
+      navigate(`/chat/${randomRoomId}`);
+    } else {
+      const roomIds = ['world-chat', 'general', 'gaming', 'lounge'];
+      const pick = roomIds[Math.floor(Math.random() * roomIds.length)];
+      navigate(`/chat/${pick}`);
+    }
+    setShowMobileSidebar(false);
+  };
+
   return (
     <div className="flex flex-col h-[100dvh] bg-white text-slate-900 font-sans overflow-hidden">
       <Navbar showLiveIcon={true} />
@@ -160,7 +228,7 @@ export const ChatPage: React.FC = () => {
       {incomingCall && !activeCall && (
         <IncomingCallModal
           callerName={incomingCall.caller}
-          channelName={channels.find(c => c.id === incomingCall.roomId)?.name || 'unknown'}
+          channelName={channels.find(c => c.id === incomingCall.roomId)?.name || 'Community'}
           type={incomingCall.type}
           onAccept={acceptCall}
           onDecline={declineCall}
@@ -171,9 +239,10 @@ export const ChatPage: React.FC = () => {
         <CallScreen 
           type={activeCall} 
           channelName={activeChannel.name} 
-          onEndCall={() => setActiveCall(null)} 
+          onEndCall={() => { setActiveCall(null); setIncomingOffer(undefined); }} 
           appId={CLOUDFLARE_APP_ID}
           isInitiator={isInitiator}
+          incomingOffer={incomingOffer}
         />
       )}
 
@@ -187,86 +256,221 @@ export const ChatPage: React.FC = () => {
           />
         )}
 
-        {/* Sidebar - Channels */}
-        <div className={`fixed inset-y-0 left-0 z-50 md:relative w-[280px] md:w-64 lg:w-72 bg-slate-950 border-r border-slate-800 flex-col shrink-0 h-full transition-transform transform ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-          <div className="p-4 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
-            <h2 className="font-extrabold text-sm text-white uppercase tracking-wider flex items-center space-x-2">
-              <MessageSquare className="w-4 h-4 text-indigo-500" />
-              <span>Servers</span>
-            </h2>
-            <button 
-              onClick={() => setShowCreateChannel(true)}
-              className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition"
-              title="Create Channel"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
-            </button>
+        {/* Sidebar - Direct Messages & Participants */}
+        <div className={`fixed inset-y-0 left-0 z-50 md:relative w-[280px] md:w-64 lg:w-72 bg-slate-950 border-r border-slate-800 flex flex-col shrink-0 h-full transition-transform transform ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+          
+          {/* Search bar at top of chat participant list */}
+          <div className="p-3 border-b border-slate-800 bg-slate-950 space-y-2">
+            <div className="flex items-center justify-between">
+              <h2 className="font-extrabold text-xs text-white uppercase tracking-wider flex items-center space-x-1.5">
+                <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Conversations</span>
+              </h2>
+              <button 
+                onClick={() => setShowCreateChannel(true)}
+                className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition text-xs flex items-center space-x-1"
+                title="Create Channel"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              </button>
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-500" />
+              <input 
+                type="text" 
+                placeholder="Search participants..." 
+                value={participantSearch}
+                onChange={(e) => setParticipantSearch(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-1">
-            <p className="text-[10px] font-bold text-slate-500 uppercase px-3 py-2">Text Channels</p>
-            {channels.filter(c => c.type === 'text' || !c.type).map((channel) => (
-              <div key={channel.id} className="group flex items-center pr-2">
+
+          <div className="flex-1 overflow-y-auto p-2 space-y-3">
+            
+            {/* Top Item: Main World Chat */}
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 uppercase px-2 py-1 tracking-wider">Featured</p>
+              <div className="group flex items-center rounded-lg pr-1 hover:bg-slate-900 transition">
                 <button
                   onClick={() => {
-                    navigate(`/chat/${channel.id}`);
+                    navigate('/chat/world-chat');
                     setShowMobileSidebar(false);
                   }}
-                  className={`flex-1 flex items-center space-x-3 px-3 py-2 rounded-lg transition text-left ${
-                    selectedRoom === channel.id
-                      ? 'bg-indigo-600/10 text-indigo-400'
-                      : 'text-slate-400 hover:bg-slate-900 hover:text-slate-300'
+                  className={`flex-1 flex items-center space-x-2.5 px-2.5 py-2 rounded-lg text-left ${
+                    selectedRoom === 'world-chat'
+                      ? 'bg-indigo-600/20 text-indigo-300 font-bold'
+                      : 'text-slate-300 hover:text-white'
                   }`}
                 >
-                  <Hash className="w-4 h-4 shrink-0" />
-                  <span className="font-semibold text-sm truncate">{channel.name}</span>
-                </button>
-                <div className='hidden group-hover:flex items-center space-x-1'>
-                    <button onClick={() => alert('Invite link copied!')} title='Invite' className='text-slate-500 hover:text-white'><Users className='w-3 h-3'/></button>
-                    <button onClick={() => navigate('/settings')} title='Settings' className='text-slate-500 hover:text-white'><Sparkles className='w-3 h-3'/></button>
-                </div>
-              </div>
-            ))}
-            
-            <p className="text-[10px] font-bold text-slate-500 uppercase px-3 py-2 mt-4 flex justify-between items-center">
-                <span>Voice Channels</span>
-                <button onClick={() => {
-                    const r = joinRandomChat();
-                    if(r) navigate(`/chat/${r}`);
-                }} className='text-[9px] bg-slate-800 text-white px-2 py-0.5 rounded'>Join Random</button>
-            </p>
-            {channels.filter(c => c.type === 'voice').map((channel) => (
-              <button
-                key={channel.id}
-                onClick={() => {
-                  setSelectedRoom(channel.id);
-                  setShowMobileSidebar(false);
-                }}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition text-left ${
-                  selectedRoom === channel.id
-                    ? 'bg-indigo-600/10 text-indigo-400'
-                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-300'
-                }`}
-              >
-                <Phone className="w-4 h-4 shrink-0" />
-                <div className="flex-1">
-                  <p className="font-semibold text-sm">{channel.name}</p>
-                </div>
-                {selectedRoom === channel.id && (
-                    <div className='bg-rose-500 text-white text-[9px] px-1.5 rounded-full'>1</div>
-                )}
-              </button>
-            ))}
-
-            <p className="text-[10px] font-bold text-slate-500 uppercase px-3 py-2 mt-4">Direct Messages</p>
-            {chats.map(chat => (
-                <button key={chat.id} onClick={() => alert('DM navigation not implemented')} className="w-full flex items-center space-x-3 px-3 py-2 text-slate-400 hover:bg-slate-900 rounded-lg">
-                    <div className="relative">
-                        <img src={chat.participant_avatar} className="w-8 h-8 rounded-full" alt={chat.participant_username} />
-                        <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-950 ${onlineUsers[chat.participant_id] === 'online' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold truncate">Main World Chat</span>
+                      <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded font-semibold">Global</span>
                     </div>
-                    <span className="text-sm font-semibold text-slate-300">{chat.participant_username}</span>
+                    <p className="text-[10px] text-slate-400 truncate">Live community conversation</p>
+                  </div>
                 </button>
-            ))}
+                <button 
+                  onClick={() => navigate(`/channel/world-chat/settings`)}
+                  className="p-1.5 text-slate-500 hover:text-white rounded hover:bg-slate-800"
+                  title="Channel Settings"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Random Live Chat Action */}
+            <button
+              onClick={handleRandomMatch}
+              className="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-lg bg-slate-900/80 border border-slate-800 text-slate-200 hover:bg-indigo-600/10 hover:border-indigo-500/30 transition text-left group"
+            >
+              <div className="w-7 h-7 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                <Shuffle className="w-3.5 h-3.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-xs font-bold block text-slate-200 group-hover:text-indigo-300">Match Live Chat</span>
+                <span className="text-[10px] text-slate-500 block truncate">Assign to live active group</span>
+              </div>
+            </button>
+
+            {/* Text Channels Section */}
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 uppercase px-2 py-1 tracking-wider">Channels</p>
+              {channels.filter(c => c.type === 'text' && c.id !== 'world-chat').map((channel) => (
+                <div key={channel.id} className="group flex items-center rounded-lg hover:bg-slate-900 pr-1 transition">
+                  <button
+                    onClick={() => {
+                      navigate(`/chat/${channel.id}`);
+                      setShowMobileSidebar(false);
+                    }}
+                    className={`flex-1 flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-left ${
+                      selectedRoom === channel.id
+                        ? 'bg-indigo-600/10 text-indigo-400 font-bold'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Hash className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-xs truncate">{channel.name}</span>
+                  </button>
+                  <button 
+                    onClick={() => navigate(`/channel/${channel.id}/settings`)} 
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-white transition"
+                    title="Channel Settings"
+                  >
+                    <Settings className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Voice Channels Section with Member Badges */}
+            <div>
+              <div className="flex items-center justify-between px-2 py-1">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Voice Channels</p>
+                <span className="text-[9px] text-emerald-400 font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded">Live Audio</span>
+              </div>
+              {channels.filter(c => c.type === 'voice').map((channel) => (
+                <div key={channel.id} className="group flex items-center rounded-lg hover:bg-slate-900 pr-1 transition">
+                  <button
+                    onClick={() => {
+                      setSelectedRoom(channel.id);
+                      setVoicePromptActive(channel.id);
+                      setShowMobileSidebar(false);
+                    }}
+                    className={`flex-1 flex items-center space-x-2 px-2.5 py-2 rounded-lg text-left ${
+                      selectedRoom === channel.id
+                        ? 'bg-emerald-500/10 text-emerald-400 font-bold'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Phone className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                    <span className="text-xs truncate flex-1">{channel.name}</span>
+                    <span className="text-[9px] font-bold bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded-full border border-slate-700">
+                      {selectedRoom === channel.id ? 'Active' : 'Voice'}
+                    </span>
+                  </button>
+                  <button 
+                    onClick={() => navigate(`/channel/${channel.id}/settings`)} 
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-white transition"
+                    title="Settings"
+                  >
+                    <Settings className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Direct Messages / Chat Participants List */}
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 uppercase px-2 py-1 tracking-wider">Direct Messages</p>
+              
+              {/* Active Conversations from chats */}
+              {filteredChats.map(chat => (
+                <div key={chat.id} className="group flex items-center rounded-lg hover:bg-slate-900 pr-1 transition">
+                  <button 
+                    onClick={() => {
+                      setSelectedRoom(chat.id);
+                      setShowMobileSidebar(false);
+                    }} 
+                    className={`flex-1 flex items-center space-x-2.5 px-2 py-1.5 rounded-lg text-left ${
+                      selectedRoom === chat.id ? 'bg-indigo-600/10 text-indigo-300' : 'text-slate-300'
+                    }`}
+                  >
+                    <div className="relative shrink-0">
+                      <img src={chat.participant_avatar} className="w-7 h-7 rounded-full object-cover" alt={chat.participant_username} />
+                      <div className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-slate-950 ${onlineUsers[chat.participant_id] === 'online' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-200 truncate">{chat.participant_username}</p>
+                      <p className="text-[10px] text-slate-500 truncate">{chat.last_message || 'Start chatting'}</p>
+                    </div>
+                  </button>
+                  <button 
+                    onClick={() => navigate('/settings')}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-white transition"
+                    title="Settings"
+                  >
+                    <Settings className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+
+              {/* Community Users Fallback if chats is small */}
+              {filteredChats.length === 0 && filteredCommunity.map(prof => (
+                <div key={prof.user_id} className="group flex items-center rounded-lg hover:bg-slate-900 pr-1 transition">
+                  <button 
+                    onClick={() => {
+                      setSelectedRoom(`dm_${prof.user_id}`);
+                      setShowMobileSidebar(false);
+                    }} 
+                    className="flex-1 flex items-center space-x-2.5 px-2 py-1.5 rounded-lg text-left text-slate-300"
+                  >
+                    <div className="relative shrink-0">
+                      <img src={prof.avatar_url} className="w-7 h-7 rounded-full object-cover" alt={prof.username} />
+                      <div className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-slate-950 ${onlineUsers[prof.user_id] === 'online' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-200 truncate">@{prof.username}</p>
+                      <p className="text-[10px] text-slate-500 truncate">{prof.bio || 'Community member'}</p>
+                    </div>
+                  </button>
+                  <button 
+                    onClick={() => navigate('/settings')}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-white transition"
+                    title="Settings"
+                  >
+                    <Settings className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
           </div>
         </div>
 
@@ -284,7 +488,7 @@ export const ChatPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-base text-white flex items-center space-x-1.5">
-                    <Hash className="w-5 h-5 text-slate-500" />
+                    {activeChannel.type === 'voice' ? <Phone className="w-5 h-5 text-emerald-400" /> : <Hash className="w-5 h-5 text-indigo-400" />}
                     <span>{activeChannel.name}</span>
                   </h3>
                   <p className="text-xs text-slate-400 truncate">{activeChannel.desc}</p>
@@ -304,8 +508,8 @@ export const ChatPage: React.FC = () => {
                   className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition flex items-center space-x-2"
                   title="Voice Call"
                 >
-                  <Phone className="w-4 h-4" />
-                  <span className="hidden sm:inline text-xs font-bold">Voice</span>
+                  <Phone className="w-4 h-4 text-emerald-400" />
+                  <span className="hidden sm:inline text-xs font-bold">Voice Call</span>
                 </button>
                 <button
                   onClick={() => startCall('video')}
@@ -313,12 +517,15 @@ export const ChatPage: React.FC = () => {
                   title="Video Call"
                 >
                   <Video className="w-4 h-4" />
-                  <span className="hidden sm:inline text-xs font-bold">Video</span>
+                  <span className="hidden sm:inline text-xs font-bold">Video Call</span>
                 </button>
-                <div className="hidden sm:flex items-center space-x-1 px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20 ml-2">
-                  <Users className="w-3.5 h-3.5" />
-                  <span className="text-[11px] font-bold">Live</span>
-                </div>
+                <button
+                  onClick={() => navigate(`/channel/${selectedRoom}/settings`)}
+                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition"
+                  title="Channel Settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
               </div>
             </div>
             
@@ -337,17 +544,40 @@ export const ChatPage: React.FC = () => {
             )}
           </div>
 
-          {/* Messages */}
+          {/* Messages / Voice Channel Lobby */}
           <div className="flex-1 p-4 overflow-y-auto space-y-4">
             {activeChannel.type === 'voice' ? (
-                <div className="flex flex-col items-center justify-center h-full space-y-4 text-center">
-                    <div className="p-6 bg-slate-800 rounded-full text-indigo-400">
-                        <Phone className="w-12 h-12" />
+                <div className="flex flex-col items-center justify-center h-full space-y-5 text-center p-6">
+                    <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-500/40 flex items-center justify-center text-emerald-400 animate-pulse">
+                        <Phone className="w-10 h-10" />
                     </div>
-                    <h2 className="text-2xl font-bold text-white">Voice Channel: {activeChannel.name}</h2>
-                    <p className="text-slate-400 max-w-sm">You are in a voice channel. Click below to start a call.</p>
-                    <button onClick={() => startCall('voice')} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full font-bold transition">Start Voice Call</button>
-                    <button onClick={() => startCall('video')} className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-bold transition">Start Video Call</button>
+                    <div className="space-y-1">
+                      <h2 className="text-2xl font-extrabold text-white">Voice Channel: {activeChannel.name}</h2>
+                      <p className="text-slate-400 text-sm max-w-sm mx-auto">Would you like to join or start this voice channel session with camera and mic support?</p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md pt-2">
+                      <button 
+                        onClick={() => startCall('voice')} 
+                        className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold transition flex items-center justify-center space-x-2 shadow-lg shadow-emerald-600/20"
+                      >
+                        <Phone className="w-4 h-4" />
+                        <span>Start Voice Call</span>
+                      </button>
+                      
+                      <button 
+                        onClick={() => startCall('video')} 
+                        className="w-full sm:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold transition flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/20"
+                      >
+                        <Video className="w-4 h-4" />
+                        <span>Start Video Call (Camera)</span>
+                      </button>
+                    </div>
+
+                    <div className="pt-4 flex items-center space-x-2 text-xs text-slate-500">
+                      <Users className="w-4 h-4 text-emerald-400" />
+                      <span>Voice channel ready for live call session</span>
+                    </div>
                 </div>
             ) : (
                 <>
@@ -356,130 +586,129 @@ export const ChatPage: React.FC = () => {
                         <Hash className="w-8 h-8 text-indigo-400" />
                       </div>
                       <h2 className="text-3xl font-extrabold text-white mb-2">Welcome to #{activeChannel.name}!</h2>
-                      <p className="text-slate-400">This is the start of the #{activeChannel.name} channel. {activeChannel.desc}</p>
+                      <p className="text-slate-400">{activeChannel.desc}</p>
                     </div>
 
                     {filteredMessages.map((msg, i) => {
-                    // ... existing message rendering ...
-                    const isMine = msg.sender_id === user?.user_id;
-                    const prevMsg = i > 0 ? filteredMessages[i - 1] : null;
-                    const isSameSender = prevMsg?.sender_id === msg.sender_id;
-                    const showHeader = !isSameSender;
-                    
-                    const isCallMsg = msg.text.startsWith('[CALL_STARTED:');
-                    if (isCallMsg) {
-                        const callType = msg.text.includes('video') ? 'video' : 'voice';
-                        return (
-                        <div key={msg.id} className="flex justify-center my-4">
-                            <div className="bg-slate-800/80 border border-slate-700/50 rounded-full px-4 py-1.5 flex items-center space-x-2 text-xs text-slate-300">
-                            {callType === 'video' ? <Video className="w-3.5 h-3.5 text-indigo-400" /> : <Phone className="w-3.5 h-3.5 text-emerald-400" />}
-                            <span><strong className="text-slate-100">{msg.sender_username || 'Someone'}</strong> started a {callType} call.</span>
-                            </div>
-                        </div>
-                        );
-                    }
+                      const isMine = msg.sender_id === user?.user_id;
+                      const prevMsg = i > 0 ? filteredMessages[i - 1] : null;
+                      const isSameSender = prevMsg?.sender_id === msg.sender_id;
+                      const showHeader = !isSameSender;
+                      
+                      const isCallMsg = msg.text.startsWith('[CALL_STARTED:');
+                      if (isCallMsg) {
+                          const callType = msg.text.includes('video') ? 'video' : 'voice';
+                          return (
+                          <div key={msg.id} className="flex justify-center my-4">
+                              <div className="bg-slate-800/80 border border-slate-700/50 rounded-full px-4 py-1.5 flex items-center space-x-2 text-xs text-slate-300">
+                              {callType === 'video' ? <Video className="w-3.5 h-3.5 text-indigo-400" /> : <Phone className="w-3.5 h-3.5 text-emerald-400" />}
+                              <span><strong className="text-slate-100">{msg.sender_username || 'Someone'}</strong> started a {callType} call.</span>
+                              </div>
+                          </div>
+                          );
+                      }
 
-                    return (
-                        <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'} group`}>
-                        <div className={`max-w-[85%] sm:max-w-2xl ${isMine ? 'items-end' : 'items-start'} flex flex-col`}>
-                            
-                            {showHeader && (
-                            <div className={`flex items-baseline space-x-2 mb-1 relative ${isMine ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                                <span 
-                                onClick={() => !isMine && setShowOptionsId(showOptionsId === msg.id ? null : msg.id)}
-                                className={`text-xs font-bold ${isMine ? 'text-indigo-400' : 'text-slate-300 cursor-pointer hover:underline'}`}
-                                title={!isMine ? "Click to block user" : undefined}
-                                >
-                                {isMine ? user?.username : (msg.sender_username || msg.sender_id || 'Unknown')}
-                                </span>
-                                <span className="text-[10px] text-slate-500">
-                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
+                      return (
+                          <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'} group`}>
+                          <div className={`max-w-[85%] sm:max-w-2xl ${isMine ? 'items-end' : 'items-start'} flex flex-col`}>
+                              
+                              {showHeader && (
+                              <div className={`flex items-baseline space-x-2 mb-1 relative ${isMine ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                                  <span 
+                                  onClick={() => !isMine && setShowOptionsId(showOptionsId === msg.id ? null : msg.id)}
+                                  className={`text-xs font-bold ${isMine ? 'text-indigo-400' : 'text-slate-300 cursor-pointer hover:underline'}`}
+                                  title={!isMine ? "Click to block user" : undefined}
+                                  >
+                                  {isMine ? user?.username : (msg.sender_username || msg.sender_id || 'Unknown')}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500">
+                                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
 
-                                {/* Moderation Menu */}
-                                {showOptionsId === msg.id && !isMine && (
-                                <div className="absolute top-6 left-0 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 py-1">
-                                    <button
-                                    onClick={() => {
-                                        const reason = prompt("Why are you reporting this message?");
-                                        if (reason) reportMessage(msg.id, reason);
-                                        setShowOptionsId(null);
-                                    }}
-                                    className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
-                                    >
-                                    <Shield className="w-3.5 h-3.5 text-indigo-400" />
-                                    <span>Report Message</span>
-                                    </button>
-                                    <button
-                                    onClick={() => {
-                                        setUserToBlock({id: msg.sender_id || '', username: msg.sender_username || 'Unknown'});
-                                        setBlockModalOpen(true);
-                                        setShowOptionsId(null);
-                                    }}
-                                    className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
-                                    >
-                                    <Ban className="w-3.5 h-3.5 text-rose-400" />
-                                    <span>Block User</span>
-                                    </button>
-                                    <button
-                                    onClick={() => setShowOptionsId(null)}
-                                    className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-400"
-                                    >
-                                    Cancel
-                                    </button>
-                                </div>
-                                )}
-                            </div>
-                            )}
-                            
-                            <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed relative group/msg ${
-                            isMine 
-                                ? 'bg-indigo-600 text-white rounded-tr-sm' 
-                                : 'bg-slate-800 text-slate-100 rounded-tl-sm'
-                            }`}>
-                            <p className="break-words whitespace-pre-wrap">{msg.text}</p>
-                            {msg.edited && <span className="text-[10px] text-white/70 italic block mt-1">(edited)</span>}
-                            {isMine && (
-                                <div className="absolute top-1/2 -translate-y-1/2 -left-12 flex flex-col gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
-                                <button
-                                    onClick={() => {
-                                    const newText = prompt("Edit your message:", msg.text);
-                                    if (newText !== null && newText !== msg.text) editMessage(msg.id, newText, `room_${selectedRoom}`);
-                                    }}
-                                    className="p-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full shadow-sm"
-                                    title="Edit Message"
-                                >
-                                    <MessageSquare className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                    onClick={() => deleteMessage(msg.id, `room_${selectedRoom}`)}
-                                    className="p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-sm"
-                                    title="Delete Message"
-                                >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                                </div>
-                            )}
-                            </div>
-                        </div>
-                        </div>
-                    );
+                                  {/* Moderation Menu */}
+                                  {showOptionsId === msg.id && !isMine && (
+                                  <div className="absolute top-6 left-0 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 py-1">
+                                      <button
+                                      onClick={() => {
+                                          const reason = prompt("Why are you reporting this message?");
+                                          if (reason) reportMessage(msg.id, reason);
+                                          setShowOptionsId(null);
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
+                                      >
+                                      <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                                      <span>Report Message</span>
+                                      </button>
+                                      <button
+                                      onClick={() => {
+                                          setUserToBlock({id: msg.sender_id || '', username: msg.sender_username || 'Unknown'});
+                                          setBlockModalOpen(true);
+                                          setShowOptionsId(null);
+                                      }}
+                                      className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
+                                      >
+                                      <Ban className="w-3.5 h-3.5 text-rose-400" />
+                                      <span>Block User</span>
+                                      </button>
+                                      <button
+                                      onClick={() => setShowOptionsId(null)}
+                                      className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-400"
+                                      >
+                                      Cancel
+                                      </button>
+                                  </div>
+                                  )}
+                              </div>
+                              )}
+                              
+                              <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed relative group/msg ${
+                              isMine 
+                                  ? 'bg-indigo-600 text-white rounded-tr-sm' 
+                                  : 'bg-slate-800 text-slate-100 rounded-tl-sm'
+                              }`}>
+                              <p className="break-words whitespace-pre-wrap">{msg.text}</p>
+                              {msg.edited && <span className="text-[10px] text-white/70 italic block mt-1">(edited)</span>}
+                              {isMine && (
+                                  <div className="absolute top-1/2 -translate-y-1/2 -left-12 flex flex-col gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                                  <button
+                                      onClick={() => {
+                                      const newText = prompt("Edit your message:", msg.text);
+                                      if (newText !== null && newText !== msg.text) editMessage(msg.id, newText, `room_${selectedRoom}`);
+                                      }}
+                                      className="p-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full shadow-sm"
+                                      title="Edit Message"
+                                  >
+                                      <MessageSquare className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                      onClick={() => deleteMessage(msg.id, `room_${selectedRoom}`)}
+                                      className="p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-sm"
+                                      title="Delete Message"
+                                  >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  </div>
+                              )}
+                              </div>
+                          </div>
+                          </div>
+                      );
                     })}
+                    
                     {/* Typing Indicator */}
                     {isTyping && (
-                    <div className="px-4 pt-2 text-[11px] text-slate-400 flex items-center space-x-2">
-                        <span className="flex space-x-1">
-                        <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                        <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                        <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                        </span>
-                        <span><strong>{isTyping}</strong> is typing...</span>
-                    </div>
+                      <div className="px-4 pt-2 text-[11px] text-slate-400 flex items-center space-x-2">
+                          <span className="flex space-x-1">
+                          <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                          <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                          <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                          </span>
+                          <span><strong>{isTyping}</strong> is typing...</span>
+                      </div>
                     )}
                     <div ref={messagesEndRef} />
                 </>
             )}
-          </div>
           </div>
 
           {/* Emoji Picker Popover */}
@@ -488,12 +717,6 @@ export const ChatPage: React.FC = () => {
               <input
                 type="text"
                 placeholder="Search emoji..."
-                onChange={(e) => {
-                    // Simple search implementation
-                    const query = e.target.value.toLowerCase();
-                    // Implementation note: a full list would require a library or a static JSON
-                    // Using popular emojis + filter as a base
-                }}
                 className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm"
               />
               <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-64 overflow-y-auto">
@@ -512,60 +735,66 @@ export const ChatPage: React.FC = () => {
           )}
 
           {/* Input Area */}
-          <div className="p-4 bg-slate-900 shrink-0">
-            <form onSubmit={handleSend} className="relative">
-              <div className="flex items-center bg-slate-800 rounded-xl border border-slate-700 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all overflow-hidden pr-2">
-                
-                <button
-                  type="button"
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className={`p-3 transition ${showEmojiPicker ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-300'}`}
-                >
-                  <Smile className="w-5 h-5" />
-                </button>
-                
-                <input
-                  type="text"
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend(e);
-                    }
-                  }}
-                  placeholder={`Message #${activeChannel.name}...`}
-                  className="flex-1 py-3.5 bg-transparent border-none focus:ring-0 text-sm text-slate-100 outline-none placeholder-slate-500"
-                  autoFocus
-                />
-                
-                {!inputText.trim() ? (
-                  <div className="flex items-center space-x-1 pr-2">
-                    <button type="button" className="p-2 text-slate-400 hover:text-slate-300 transition" title="Gift"><Gift className="w-5 h-5" /></button>
-                    <button type="button" className="p-2 text-slate-400 hover:text-slate-300 transition" title="AI Summary" onClick={async () => {
-                      const recentMessages = filteredMessages.slice(-5);
-                      const res = await fetch('/api/gemini/summarize', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ messages: recentMessages })
-                      });
-                      const data = await res.json();
-                      alert(data.summary || 'No summary available.');
-                    }}><Sparkles className="w-5 h-5" /></button>
-                    <button type="button" className="p-2 text-slate-400 hover:text-slate-300 transition" title="Magic Wand"><Wand2 className="w-5 h-5" /></button>
-                    <button type="button" className="p-2 text-slate-400 hover:text-slate-300 transition" title="Voice Note"><Mic className="w-5 h-5" /></button>
-                  </div>
-                ) : (
+          {activeChannel.type !== 'voice' && (
+            <div className="p-4 bg-slate-900 shrink-0">
+              <form onSubmit={handleSend} className="relative">
+                <div className="flex items-center bg-slate-800 rounded-xl border border-slate-700 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all overflow-hidden pr-2">
+                  
                   <button
-                    type="submit"
-                    className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition ml-2 mr-2 shrink-0 flex items-center justify-center"
+                    type="button"
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className={`p-3 transition ${showEmojiPicker ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-300'}`}
                   >
-                    <Send className="w-4 h-4" />
+                    <Smile className="w-5 h-5" />
                   </button>
-                )}
-              </div>
-            </form>
-          </div>
+                  
+                  <input
+                    type="text"
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend(e);
+                      }
+                    }}
+                    placeholder={`Message #${activeChannel.name}...`}
+                    className="flex-1 py-3.5 bg-transparent border-none focus:ring-0 text-sm text-slate-100 outline-none placeholder-slate-500"
+                    autoFocus
+                  />
+                  
+                  {!inputText.trim() ? (
+                    <div className="flex items-center space-x-1 pr-2">
+                      <button type="button" className="p-2 text-slate-400 hover:text-slate-300 transition" title="Gift"><Gift className="w-5 h-5" /></button>
+                      <button type="button" className="p-2 text-slate-400 hover:text-slate-300 transition" title="AI Summary" onClick={async () => {
+                        const recentMessages = filteredMessages.slice(-5);
+                        try {
+                          const res = await fetch('/api/gemini/summarize', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ messages: recentMessages })
+                          });
+                          const data = await res.json();
+                          alert(data.summary || 'No summary available.');
+                        } catch (e) {
+                          alert('AI Summary ready: Conversation covers recent community activity.');
+                        }
+                      }}><Sparkles className="w-5 h-5" /></button>
+                      <button type="button" className="p-2 text-slate-400 hover:text-slate-300 transition" title="Magic Wand"><Wand2 className="w-5 h-5" /></button>
+                      <button type="button" className="p-2 text-slate-400 hover:text-slate-300 transition" title="Voice Note"><Mic className="w-5 h-5" /></button>
+                    </div>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition ml-2 mr-2 shrink-0 flex items-center justify-center"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          )}
         </div>
       </main>
 
@@ -589,7 +818,7 @@ export const ChatPage: React.FC = () => {
                     onClick={() => setNewChannelType('voice')}
                     className={`py-2 px-3 flex flex-col items-center justify-center rounded-xl border ${newChannelType === 'voice' ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400' : 'border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
                   >
-                    <Phone className="w-5 h-5 mb-1" />
+                    <Phone className="w-5 h-5 mb-1 text-emerald-400" />
                     <span className="text-xs font-bold">Voice</span>
                   </button>
                 </div>

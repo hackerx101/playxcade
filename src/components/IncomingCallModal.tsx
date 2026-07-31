@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { Phone, PhoneOff, Video } from 'lucide-react';
 
 interface IncomingCallModalProps {
@@ -16,19 +16,55 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
   onAccept,
   onDecline
 }) => {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    // Play incoming ringtone
-    const audio = new Audio('https://www.soundjay.com/phone/telephone-ring-03a.mp3');
-    audio.loop = true;
-    audio.play().catch(e => console.warn('Ringtone autoplay blocked', e));
-    audioRef.current = audio;
+    // Play Web Audio API ringtone synthesizer over speaker
+    let audioCtx: AudioContext | null = null;
+    let intervalId: any = null;
+
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        audioCtx = new AudioContextClass();
+
+        const playTonePattern = () => {
+          if (!audioCtx || audioCtx.state === 'closed') return;
+          if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+
+          const osc1 = audioCtx.createOscillator();
+          const osc2 = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+
+          osc1.frequency.setValueAtTime(440, audioCtx.currentTime);
+          osc2.frequency.setValueAtTime(480, audioCtx.currentTime);
+
+          gain.gain.setValueAtTime(0, audioCtx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.25, audioCtx.currentTime + 0.05);
+          gain.gain.setValueAtTime(0.25, audioCtx.currentTime + 1.8);
+          gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 2.0);
+
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc1.start(audioCtx.currentTime);
+          osc2.start(audioCtx.currentTime);
+
+          osc1.stop(audioCtx.currentTime + 2.0);
+          osc2.stop(audioCtx.currentTime + 2.0);
+        };
+
+        playTonePattern();
+        intervalId = setInterval(playTonePattern, 3500);
+      }
+    } catch (e) {
+      console.warn('Ringtone playback error:', e);
+    }
 
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = '';
+      if (intervalId) clearInterval(intervalId);
+      if (audioCtx && audioCtx.state !== 'closed') {
+        audioCtx.close().catch(() => {});
       }
     };
   }, []);

@@ -27,6 +27,7 @@ import { supabase } from '../lib/supabase';
 import {
   UserProfile,
   Post,
+  Comment,
   Chat,
   Message,
   NotificationItem,
@@ -73,6 +74,8 @@ interface AuthContextType {
   deletePost: (postId: string) => void;
   archivePost: (postId: string) => void;
   likePost: (postId: string) => void;
+  addComment: (postId: string, content: string) => Promise<Comment | null>;
+  fetchComments: (postId: string) => Promise<Comment[]>;
   toggleFollow: (targetUserId: string) => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
   submitAppeal: (reason: string, details: { name: string; phone: string; email: string; dob: string }) => void;
@@ -420,15 +423,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   /**
    * Fetch posts with smart caching
    */
-  const fetchPosts = async () => {
+  const fetchPosts = async (activeUserId?: string) => {
     try {
       const postsRef = collection(db, 'posts');
       const q = query(postsRef, orderBy('created_at', 'desc'));
       const querySnap = await getDocs(q);
 
+      const targetUserId = activeUserId || user?.user_id;
+      const userLikedPostIds = new Set<string>();
+      if (targetUserId) {
+        try {
+          const likesRef = collection(db, 'post_likes');
+          const likesQ = query(likesRef, where('user_id', '==', targetUserId));
+          const likesSnap = await getDocs(likesQ);
+          likesSnap.forEach(d => userLikedPostIds.add(d.data().post_id));
+        } catch (e) {}
+      }
+
       if (!querySnap.empty) {
         const fetchedPosts: Post[] = querySnap.docs.map(docSnap => {
           const p = docSnap.data();
+          const isLiked = userLikedPostIds.has(docSnap.id);
           const postObj: Post = {
             id: docSnap.id,
             user_id: p.user_id,
@@ -439,9 +454,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             caption: p.caption,
             type: p.type || 'text',
             media_url: p.media_url,
-            likes_count: p.likes_count || 0,
-            comments_count: p.comments_count || 0,
-            is_liked: false,
+            likes_count: typeof p.likes_count === 'number' ? p.likes_count : 0,
+            comments_count: typeof p.comments_count === 'number' ? p.comments_count : 0,
+            is_liked: isLiked,
             created_at: p.created_at ? new Date(p.created_at).toLocaleString() : 'Just now'
           };
           appCache.setPost(docSnap.id, postObj);
@@ -459,6 +474,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data && data.length > 0) {
           const formatted = data.map(p => {
             const profileObj = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+            const isLiked = userLikedPostIds.has(p.id);
             const postObj: Post = {
               id: p.id,
               user_id: p.user_id,
@@ -471,7 +487,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               media_url: p.media_url,
               likes_count: p.likes_count || 0,
               comments_count: p.comments_count || 0,
-              is_liked: false,
+              is_liked: isLiked,
               created_at: new Date(p.created_at).toLocaleString()
             };
             // Seed Firestore
@@ -865,30 +881,187 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const archivePost = () => {};
 
   const likePost = async (postId: string) => {
-    if (!user) return;
+    if (!user) {
+      alert('Please log in to like posts.');
+      return;
+    }
     const likeDocId = `${postId}_${user.user_id}`;
     const likeRef = doc(db, 'post_likes', likeDocId);
     const likeSnap = await getDoc(likeRef);
 
-    if (likeSnap.exists()) {
-      await deleteDoc(likeRef);
+    const isCurrentlyLiked = likeSnap.exists();
+    const newIsLiked = !isCurrentlyLiked;
+    let targetPostAuthorId: string | null = null;
+
+    if (isCurrentlyLiked) {
+      await deleteDoc(likeRef).catch(() => {});
+      supabase.from('post_likes').delete().eq('id', likeDocId).then(() => {});
     } else {
       await setDoc(likeRef, {
+        id: likeDocId,
         post_id: postId,
         user_id: user.user_id,
         created_at: new Date().toISOString()
-      });
+      }).catch(() => {});
+
+      supabase.from('post_likes').insert({
+        id: likeDocId,
+        post_id: postId,
+        user_id: user.user_id,
+        created_at: new Date().toISOString()
+      }).then(() => {});
     }
 
     setPosts(prev => prev.map(p => {
       if (p.id === postId) {
-        const isLiked = !p.is_liked;
-        const newLikesCount = p.likes_count + (isLiked ? 1 : -1);
-        updateDoc(doc(db, 'posts', postId), { likes_count: newLikesCount });
-        return { ...p, is_liked: isLiked, likes_count: newLikesCount };
+        targetPostAuthorId = p.user_id;
+        const newLikesCount = Math.max(0, p.likes_count + (newIsLiked ? 1 : -1));
+
+        updateDoc(doc(db, 'posts', postId), {
+          likes_count: increment(newIsLiked ? 1 : -1)
+        }).catch(() => {});
+
+        supabase.from('posts').update({ likes_count: newLikesCount }).eq('id', postId).then(() => {});
+
+        return { ...p, is_liked: newIsLiked, likes_count: newLikesCount };
       }
       return p;
     }));
+
+    if (newIsLiked && targetPostAuthorId && targetPostAuthorId !== user.user_id) {
+      addDoc(collection(db, 'notifications'), {
+        recipient_id: targetPostAuthorId,
+        sender_id: user.user_id,
+        sender_username: user.username,
+        type: 'like',
+        title: 'New Like',
+        body: `@${user.username} liked your post!`,
+        created_at: new Date().toISOString(),
+        read: false
+      }).catch(() => {});
+    }
+  };
+
+  const addComment = async (postId: string, content: string): Promise<Comment | null> => {
+    if (!user) {
+      alert('Please log in to comment.');
+      return null;
+    }
+
+    const modResult = analyzeTextContent(content);
+    if (modResult.action === 'REJECT_AND_STRIKE') {
+      alert(`🚨 COMMENT BLOCKED:\n\n${modResult.userFacingMessage}`);
+      return null;
+    }
+
+    const commentId = `comment_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const nowIso = new Date().toISOString();
+
+    const newComment: Comment = {
+      id: commentId,
+      post_id: postId,
+      user_id: user.user_id,
+      author_username: user.username,
+      author_avatar: user.avatar_url,
+      content: content.trim(),
+      created_at: 'Just now'
+    };
+
+    // Save to Firestore
+    await setDoc(doc(db, 'comments', commentId), {
+      ...newComment,
+      created_at: nowIso
+    });
+
+    // Save to Supabase
+    supabase.from('comments').insert({
+      id: commentId,
+      post_id: postId,
+      user_id: user.user_id,
+      content: content.trim(),
+      created_at: nowIso
+    }).then(() => {});
+
+    // Increment comments_count on post
+    let targetPostAuthorId: string | null = null;
+    setPosts(prev => prev.map(p => {
+      if (p.id === postId) {
+        targetPostAuthorId = p.user_id;
+        const newCommentsCount = (p.comments_count || 0) + 1;
+        updateDoc(doc(db, 'posts', postId), {
+          comments_count: increment(1)
+        }).catch(() => {});
+        supabase.from('posts').update({ comments_count: newCommentsCount }).eq('id', postId).then(() => {});
+        return { ...p, comments_count: newCommentsCount };
+      }
+      return p;
+    }));
+
+    // Trigger real-time notification to post author
+    if (targetPostAuthorId && targetPostAuthorId !== user.user_id) {
+      addDoc(collection(db, 'notifications'), {
+        recipient_id: targetPostAuthorId,
+        sender_id: user.user_id,
+        sender_username: user.username,
+        type: 'comment',
+        title: 'New Comment',
+        body: `@${user.username} commented on your post: "${content.substring(0, 40)}${content.length > 40 ? '...' : ''}"`,
+        created_at: nowIso,
+        read: false
+      }).catch(() => {});
+    }
+
+    return newComment;
+  };
+
+  const fetchComments = async (postId: string): Promise<Comment[]> => {
+    try {
+      const commentsRef = collection(db, 'comments');
+      const q = query(commentsRef, where('post_id', '==', postId), orderBy('created_at', 'asc'));
+      const querySnap = await getDocs(q);
+
+      if (!querySnap.empty) {
+        return querySnap.docs.map(docSnap => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            post_id: data.post_id,
+            user_id: data.user_id,
+            author_username: data.author_username || 'User',
+            author_avatar: data.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.user_id}`,
+            content: data.content || '',
+            created_at: data.created_at ? new Date(data.created_at).toLocaleString() : 'Recently'
+          };
+        });
+      }
+
+      // Fallback check Supabase
+      const { data } = await supabase
+        .from('comments')
+        .select('*, profiles(username, avatar_url)')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true });
+
+      if (data && data.length > 0) {
+        return data.map(c => {
+          const prof = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
+          return {
+            id: c.id,
+            post_id: c.post_id,
+            user_id: c.user_id,
+            author_username: prof?.username || 'User',
+            author_avatar: prof?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${c.user_id}`,
+            content: c.content || '',
+            created_at: new Date(c.created_at).toLocaleString()
+          };
+        });
+      }
+
+      return [];
+    } catch (err) {
+      console.warn('Fetch comments error:', err);
+      return [];
+    }
   };
 
   const submitAppeal = () => {};
@@ -1139,12 +1312,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const joinRandomChat = () => {
-    const voiceChannels = channels.filter(c => c.type === 'voice');
-    if (voiceChannels.length > 0) {
-      const randomChannel = voiceChannels[Math.floor(Math.random() * voiceChannels.length)];
-      return randomChannel.id;
-    }
-    return null;
+    const channelIds = ['world-chat', 'general', 'gaming', 'lounge', 'squad'];
+    const randomChannel = channelIds[Math.floor(Math.random() * channelIds.length)];
+    return randomChannel;
   };
 
 
@@ -1156,7 +1326,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         markNotificationsAsRead, fetchRealUsers, recentSearches,
         addRecentSearch, clearRecentSearches, removeRecentSearch, followingIds,
         login, signup, loginWithSupabase, signupWithSupabase, logout, completeOnboarding, createPost, deletePost, archivePost,
-        likePost, toggleFollow, updateProfile, submitAppeal, verifyIdentity, restoreAccountStatus,
+        likePost, addComment, fetchComments, toggleFollow, updateProfile, submitAppeal, verifyIdentity, restoreAccountStatus,
         verifications, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, fetchCachedProfile, uploadFile, onlineUsers, joinRandomChat
       }}
     >

@@ -9,6 +9,7 @@ import { FeedPage } from './pages/FeedPage';
 import { ForYouPage } from './pages/ForYouPage';
 import { ExplorePage } from './pages/ExplorePage';
 import { ChatPage } from './pages/ChatPage';
+import { ChannelSettingsPage } from './pages/ChannelSettingsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { FollowsPage } from './pages/FollowsPage';
 import { ReportPage } from './pages/ReportPage';
@@ -145,6 +146,22 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ChatPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/channel/:channelId/settings"
+            element={
+              <ProtectedRoute>
+                <ChannelSettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chanell/:channelId/settings"
+            element={
+              <ProtectedRoute>
+                <ChannelSettingsPage />
               </ProtectedRoute>
             }
           />

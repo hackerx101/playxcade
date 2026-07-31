@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Send, MessageSquare, Heart, Share2, CornerDownRight } from 'lucide-react';
+import { Send, MessageSquare, Heart, Share2, CornerDownRight, Loader2 } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
 import { PostCard } from '../components/PostCard';
@@ -11,28 +11,35 @@ import { Comment } from '../types';
 export const PostDetailPage: React.FC = () => {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
-  const { posts, user } = useAuth();
+  const { posts, user, fetchComments, addComment } = useAuth();
 
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
+  const [loadingComments, setLoadingComments] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   const targetPost = posts.find((p) => p.id === postId);
 
-  const handleAddComment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!commentText.trim() || !user) return;
+  useEffect(() => {
+    if (postId) {
+      setLoadingComments(true);
+      fetchComments(postId)
+        .then((fetched) => setComments(fetched))
+        .finally(() => setLoadingComments(false));
+    }
+  }, [postId]);
 
-    const newC: Comment = {
-      id: 'c_' + Date.now(),
-      post_id: postId || '',
-      user_id: user.user_id,
-      author_username: user.username,
-      author_avatar: user.avatar_url,
-      content: commentText.trim(),
-      created_at: 'Just now',
-    };
-    setComments((prev) => [...prev, newC]);
-    setCommentText('');
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentText.trim() || !user || !postId || submitting) return;
+
+    setSubmitting(true);
+    const added = await addComment(postId, commentText.trim());
+    if (added) {
+      setComments((prev) => [...prev, added]);
+      setCommentText('');
+    }
+    setSubmitting(false);
   };
 
   return (
@@ -73,36 +80,50 @@ export const PostDetailPage: React.FC = () => {
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1"
+                  disabled={submitting || !commentText.trim()}
+                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Reply</span>
+                  {submitting ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
+                  <span className="hidden sm:inline">{submitting ? 'Posting...' : 'Reply'}</span>
                 </button>
               </form>
 
               {/* Comments List */}
               <div className="space-y-3 pt-2">
-                {comments.map((c) => (
-                  <div key={c.id} className="flex items-start space-x-3 p-3 rounded-xl bg-slate-50/70">
-                    <img
-                      src={c.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${c.author_username}`}
-                      alt={c.author_username}
-                      className="w-8 h-8 rounded-full object-cover border border-slate-200"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <Link
-                          to={`/profile/${c.author_username}`}
-                          className="font-bold text-xs text-slate-900 hover:underline"
-                        >
-                          @{c.author_username}
-                        </Link>
-                        <span className="text-[10px] text-slate-400">{c.created_at}</span>
-                      </div>
-                      <p className="text-xs text-slate-700 leading-relaxed">{c.content}</p>
-                    </div>
+                {loadingComments ? (
+                  <div className="flex items-center justify-center py-6 text-slate-400 space-x-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                    <span className="text-xs">Loading comments...</span>
                   </div>
-                ))}
+                ) : comments.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-4">No comments yet. Be the first to comment!</p>
+                ) : (
+                  comments.map((c) => (
+                    <div key={c.id} className="flex items-start space-x-3 p-3 rounded-xl bg-slate-50/70">
+                      <img
+                        src={c.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${c.author_username}`}
+                        alt={c.author_username}
+                        className="w-8 h-8 rounded-full object-cover border border-slate-200"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <Link
+                            to={`/profile/${c.author_username}`}
+                            className="font-bold text-xs text-slate-900 hover:underline"
+                          >
+                            @{c.author_username}
+                          </Link>
+                          <span className="text-[10px] text-slate-400">{c.created_at}</span>
+                        </div>
+                        <p className="text-xs text-slate-700 leading-relaxed">{c.content}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

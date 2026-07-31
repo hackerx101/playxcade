@@ -3,6 +3,8 @@ import { X, FileText, Image as ImageIcon, Video, Tag, Hash, Sparkles } from 'luc
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
+const CATEGORIES = ['Warlands', 'Gaming', 'Esports', 'Highlights', 'Tutorial', 'Live Stream', 'Community'];
+
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -167,7 +169,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900"
               >
-                {categories.map((cat) => (
+                {CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
