@@ -244,14 +244,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return map;
   }, [unreadMessageNotifications]);
 
-  const fetchRealUsers = useCallback(async (): Promise<UserProfile[]> => {
+  const fetchRealUsers = useCallback(async (includeSelf = false): Promise<UserProfile[]> => {
     try {
       const q = query(collection(db, 'profiles'));
       const querySnap = await getDocs(q);
       const list: UserProfile[] = [];
       querySnap.forEach((d) => {
         const data = d.data();
-        if (data.username && (!user || data.user_id !== user.user_id)) {
+        if (data.username && (includeSelf || !user || data.user_id !== user.user_id)) {
           list.push({
             id: d.id,
             user_id: data.user_id || d.id,
@@ -264,7 +264,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             appeal_status: 'none',
             IsIdentityVerify: data.is_verified || false,
             is_private: false,
-            created_at: data.created_at || new Date().toISOString()
+            created_at: data.created_at || new Date().toISOString(),
+            following: data.following || []
           });
         }
       });
@@ -456,6 +457,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       appCache.setProfile(handle, formattedProfile);
 
       setUser(formattedProfile);
+      // Also fetch following IDs from Supabase since it's cleaner/faster, or fallback to Firebase if not using Supabase
+      try {
+        const { data: followData } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', userId);
+        
+        if (followData) {
+          setFollowingIds(followData.map((f: any) => f.following_id));
+        } else {
+          // Fallback to Firestore if Supabase fails
+          const q = query(collection(db, 'followers'), where('follower_id', '==', userId));
+          const snap = await getDocs(q);
+          setFollowingIds(snap.docs.map(d => d.data().following_id));
+        }
+      } catch (err) {
+        console.warn('Could not fetch following IDs:', err);
+      }
+
       return formattedProfile;
     } catch (err) {
       console.warn('Error fetching Firestore profile:', err);

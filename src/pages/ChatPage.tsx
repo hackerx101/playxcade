@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Send, Hash, Video, Phone, Users, Shield, Smile, MessageSquare, ChevronDown, Ban, Search, Gift, Wand2, Sparkles, Mic, Trash2, Settings, Globe, Shuffle } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
@@ -48,6 +48,7 @@ export const ChatPage: React.FC = () => {
   const [communityUsers, setCommunityUsers] = useState<UserProfile[]>([]);
   const [channelSettingsModal, setChannelSettingsModal] = useState<string | null>(null);
   const [voicePromptActive, setVoicePromptActive] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<any>(null);
 
   // Cloudflare App ID provided by user
   const CLOUDFLARE_APP_ID = 'ce6166e0362af275b7fce968ceb80ba5';
@@ -181,7 +182,7 @@ export const ChatPage: React.FC = () => {
     };
   }, [user?.user_id, selectedRoom]);
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = (e: React.FormEvent | React.KeyboardEvent) => {
     e.preventDefault();
     if (!inputText.trim() || !selectedRoom) return;
 
@@ -197,9 +198,16 @@ export const ChatPage: React.FC = () => {
       return;
     }
 
-    sendMessage(targetChatId, inputText, user?.username);
+    let textToSend = inputText;
+    if (replyingTo) {
+      const cleanPrevText = replyingTo.text.replace(/^\[REPLY_TO:.*?\|.*?\]\n/g, '').replace(/\n/g, ' ').substring(0, 40) + '...';
+      textToSend = `[REPLY_TO:${replyingTo.sender_username || 'User'}|${cleanPrevText}]\n${inputText}`;
+    }
+
+    sendMessage(targetChatId, textToSend, user?.username);
     setInputText('');
     setShowEmojiPicker(false);
+    setReplyingTo(null);
   };
 
   const insertEmoji = (emoji: string) => {
@@ -658,86 +666,119 @@ export const ChatPage: React.FC = () => {
                             />
                           )}
 
-                          <div className={`max-w-[85%] sm:max-w-xl ${isMine ? 'items-end' : 'items-start'} flex flex-col`}>
+                          <div className={`max-w-[85%] sm:max-w-xl ${isMine ? 'items-end' : 'items-start'} flex flex-col relative`}>
                             
                             {showHeader && (
                               <div className={`flex items-baseline space-x-2 mb-1 relative ${isMine ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                                <span 
-                                  onClick={() => !isMine && setShowOptionsId(showOptionsId === msg.id ? null : msg.id)}
-                                  className={`text-xs font-bold ${isMine ? 'text-indigo-400' : 'text-slate-300 cursor-pointer hover:underline'}`}
-                                  title={!isMine ? "Click to block user" : undefined}
+                                <Link 
+                                  to={`/profile/${msg.sender_username || msg.sender_id}`}
+                                  className={`text-xs font-bold ${isMine ? 'text-indigo-400' : 'text-slate-300 hover:underline'}`}
                                 >
                                   {isMine ? (user?.username ? `@${user.username}` : 'You') : `@${msg.sender_username || msg.sender_id || 'User'}`}
-                                </span>
+                                </Link>
                                 <span className="text-[10px] text-slate-500">
                                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
-
-                                {/* Moderation Menu */}
-                                {showOptionsId === msg.id && !isMine && (
-                                  <div className="absolute top-6 left-0 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 py-1">
-                                    <button
-                                      onClick={() => {
-                                        const reason = prompt("Why are you reporting this message?");
-                                        if (reason) reportMessage(msg.id, reason);
-                                        setShowOptionsId(null);
-                                      }}
-                                      className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
-                                    >
-                                      <Shield className="w-3.5 h-3.5 text-indigo-400" />
-                                      <span>Report Message</span>
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        setUserToBlock({id: msg.sender_id || '', username: msg.sender_username || 'Unknown'});
-                                        setBlockModalOpen(true);
-                                        setShowOptionsId(null);
-                                      }}
-                                      className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
-                                    >
-                                      <Ban className="w-3.5 h-3.5 text-rose-400" />
-                                      <span>Block User</span>
-                                    </button>
-                                    <button
-                                      onClick={() => setShowOptionsId(null)}
-                                      className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-400"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                )}
                               </div>
                             )}
                             
-                            <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed relative group/msg ${
-                              isMine 
-                                ? 'bg-indigo-600 text-white rounded-tr-sm shadow-md' 
-                                : 'bg-slate-800 border border-slate-700/60 text-slate-100 rounded-tl-sm shadow-sm'
-                            }`}>
-                              <p className="break-words whitespace-pre-wrap">{msg.text}</p>
-                              {msg.edited && <span className="text-[10px] text-white/70 italic block mt-1">(edited)</span>}
-                              {isMine && (
-                                <div className="absolute top-1/2 -translate-y-1/2 -left-12 flex flex-col gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
-                                  <button
-                                    onClick={() => {
-                                      const newText = prompt("Edit your message:", msg.text);
-                                      if (newText !== null && newText !== msg.text) editMessage(msg.id, newText, `room_${selectedRoom}`);
-                                    }}
-                                    className="p-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full shadow-sm"
-                                    title="Edit Message"
-                                  >
-                                    <MessageSquare className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => deleteMessage(msg.id, `room_${selectedRoom}`)}
-                                    className="p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-sm"
-                                    title="Delete Message"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                            {(() => {
+                              let displayText = msg.text;
+                              let replySnippet = null;
+                              if (displayText.startsWith('[REPLY_TO:')) {
+                                const match = displayText.match(/^\[REPLY_TO:(.*?)\|(.*?)\]\n([\s\S]*)$/);
+                                if (match) {
+                                  replySnippet = { username: match[1], text: match[2] };
+                                  displayText = match[3];
+                                }
+                              }
+
+                              return (
+                                <div 
+                                  onClick={() => setShowOptionsId(showOptionsId === msg.id ? null : msg.id)}
+                                  className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed relative cursor-pointer ${
+                                    isMine 
+                                      ? 'bg-indigo-600 text-white rounded-tr-sm shadow-md' 
+                                      : 'bg-slate-800 border border-slate-700/60 text-slate-100 rounded-tl-sm shadow-sm'
+                                  }`}
+                                >
+                                  {replySnippet && (
+                                    <div className="mb-2 pl-3 border-l-2 border-white/30 text-[11px] opacity-90">
+                                      <p className="font-bold mb-0.5">{replySnippet.username}</p>
+                                      <p className="truncate">{replySnippet.text}</p>
+                                    </div>
+                                  )}
+                                  <p className="break-words whitespace-pre-wrap">{displayText}</p>
+                                  {msg.edited && <span className="text-[10px] text-white/70 italic block mt-1">(edited)</span>}
+                                  
+                                  {/* Message Options Menu */}
+                                  {showOptionsId === msg.id && (
+                                    <div className={`absolute top-full mt-1 ${isMine ? 'right-0' : 'left-0'} w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-30 py-1 overflow-hidden`}>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); setShowOptionsId(null); }}
+                                        className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
+                                      >
+                                        <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
+                                        <span>Reply</span>
+                                      </button>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(displayText); setShowOptionsId(null); }}
+                                        className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
+                                      >
+                                        <Globe className="w-3.5 h-3.5 text-slate-400" />
+                                        <span>Copy Text</span>
+                                      </button>
+                                      
+                                      {!isMine && (
+                                        <>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); const reason = prompt("Report reason:"); if (reason) reportMessage(msg.id, reason); setShowOptionsId(null); }}
+                                            className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
+                                          >
+                                            <Shield className="w-3.5 h-3.5 text-orange-400" />
+                                            <span>Report</span>
+                                          </button>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setUserToBlock({id: msg.sender_id || '', username: msg.sender_username || 'Unknown'}); setBlockModalOpen(true); setShowOptionsId(null); }}
+                                            className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
+                                          >
+                                            <Ban className="w-3.5 h-3.5 text-rose-400" />
+                                            <span>Block User</span>
+                                          </button>
+                                        </>
+                                      )}
+
+                                      {isMine && (
+                                        <>
+                                          <button
+                                            onClick={(e) => { 
+                                              e.stopPropagation(); 
+                                              const newText = prompt("Edit your message:", displayText); 
+                                              if (newText !== null && newText !== displayText) {
+                                                const textToSend = replySnippet ? `[REPLY_TO:${replySnippet.username}|${replySnippet.text}]\n${newText}` : newText;
+                                                editMessage(msg.id, textToSend, targetChatId); 
+                                              }
+                                              setShowOptionsId(null); 
+                                            }}
+                                            className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
+                                          >
+                                            <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                                            <span>Edit</span>
+                                          </button>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); deleteMessage(msg.id, targetChatId); setShowOptionsId(null); }}
+                                            className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                                            <span>Delete</span>
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
+                              );
+                            })()}
                           </div>
 
                           {isMine && (
@@ -793,6 +834,20 @@ export const ChatPage: React.FC = () => {
           {/* Input Area */}
           {activeChannel.type !== 'voice' && (
             <div className="p-4 bg-slate-900 shrink-0">
+              {replyingTo && (
+                <div className="mb-2 bg-slate-800 rounded-lg p-3 flex items-center justify-between border-l-4 border-indigo-500">
+                  <div className="flex-1 overflow-hidden">
+                    <p className="text-xs font-bold text-indigo-400 mb-1">Replying to @{replyingTo.sender_username || 'User'}</p>
+                    <p className="text-sm text-slate-300 truncate">{replyingTo.text.replace(/^\[REPLY_TO:.*?\|.*?\]\n/g, '')}</p>
+                  </div>
+                  <button 
+                    onClick={() => setReplyingTo(null)}
+                    className="p-2 text-slate-400 hover:text-white transition rounded-full hover:bg-slate-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
               <form onSubmit={handleSend} className="relative">
                 <div className="flex items-center bg-slate-800 rounded-xl border border-slate-700 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all overflow-hidden pr-2">
                   

@@ -34,6 +34,7 @@ export interface UserProfile {
   is_upgraded?: boolean;
   subscription_plan?: SubscriptionPlan;
   interests?: string[];
+  following?: string[];
 }
 
 export interface Post {

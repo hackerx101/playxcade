@@ -24,6 +24,7 @@ export const ProfilePage: React.FC = () => {
 
   const [dbFollowersCount, setDbFollowersCount] = useState<number>(0);
   const [dbFollowingCount, setDbFollowingCount] = useState<number>(0);
+  const [targetFollowingArray, setTargetFollowingArray] = useState<string[]>([]);
 
   const targetUserId = isOwnProfile ? (user?.user_id || '') : (username ? 'u_' + username : '');
 
@@ -33,7 +34,8 @@ export const ProfilePage: React.FC = () => {
         if (snap.exists()) {
           const data = snap.data();
           setDbFollowersCount(data.followers_count || 0);
-          setDbFollowingCount(data.following_count || 0);
+          setDbFollowingCount(data.following?.length || data.following_count || 0);
+          setTargetFollowingArray(data.following || []);
         }
       }).catch(() => {});
     }
@@ -66,7 +68,7 @@ export const ProfilePage: React.FC = () => {
 
   const displayedFollowersCount = isOwnProfile
     ? (user?.followers_count || 0)
-    : Math.max(isTargetFollowing ? 1 : 0, dbFollowersCount + (isTargetFollowing ? 1 : 0));
+    : dbFollowersCount;
   
   const displayedFollowingCount = isOwnProfile
     ? followingIds.length

@@ -7,6 +7,9 @@ import { BottomBar } from '../components/BottomBar';
 import { FollowButton } from '../components/FollowButton';
 import { useAuth } from '../context/AuthContext';
 import { UserProfile } from '../types';
+import { supabase } from '../lib/supabase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export const FollowsPage: React.FC = () => {
   const { username } = useParams<{ username: string }>();
@@ -18,13 +21,20 @@ export const FollowsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [communityUsers, setCommunityUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const [targetFollowingIds, setTargetFollowingIds] = useState<string[]>([]);
+  const [targetFollowerIds, setTargetFollowerIds] = useState<string[]>([]);
 
   const displayHandle = username || user?.username || 'user';
+
+  const isTargetOwn = !username || (user && user.username.toLowerCase() === username.toLowerCase());
+  const targetUser = communityUsers.find(u => u.username.toLowerCase() === displayHandle.toLowerCase());
+  const targetUserId = targetUser?.user_id || (isTargetOwn && user ? user.user_id : (username ? `u_${username}` : ''));
 
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
-    fetchRealUsers().then((users) => {
+    fetchRealUsers(true).then((users) => {
       if (isMounted) {
         setCommunityUsers(users);
         setLoading(false);
@@ -35,10 +45,40 @@ export const FollowsPage: React.FC = () => {
     };
   }, [fetchRealUsers]);
 
-  // Filter users based on subtab
-  // For following: filter users whose ID is in followingIds or match target user
-  // For followers: community users
-  const isTargetOwn = !username || (user && user.username.toLowerCase() === username.toLowerCase());
+  useEffect(() => {
+    let isMounted = true;
+    if (!targetUserId) return;
+
+    if (isTargetOwn) {
+      setTargetFollowingIds(followingIds);
+    } else {
+      // Fetch target user's following list
+      supabase.from('follows').select('following_id').eq('follower_id', targetUserId)
+        .then(({ data }) => {
+          if (isMounted && data) {
+            setTargetFollowingIds(data.map(d => d.following_id));
+          }
+        });
+    }
+
+    // Fetch target user's followers list
+    supabase.from('follows').select('follower_id').eq('following_id', targetUserId)
+      .then(({ data }) => {
+        if (isMounted && data) {
+          setTargetFollowerIds(data.map(d => d.follower_id));
+        } else {
+          // Fallback to Firebase
+          const q = query(collection(db, 'followers'), where('following_id', '==', targetUserId));
+          getDocs(q).then(snap => {
+            if (isMounted) {
+              setTargetFollowerIds(snap.docs.map(d => d.data().follower_id));
+            }
+          }).catch(() => {});
+        }
+      });
+      
+    return () => { isMounted = false; };
+  }, [targetUserId, followingIds, isTargetOwn]);
 
   const displayedList = communityUsers.filter((u) => {
     // Exclude target user itself from list
@@ -53,14 +93,17 @@ export const FollowsPage: React.FC = () => {
     }
 
     if (activeSubTab === 'following') {
-      if (isTargetOwn) {
-        return followingIds.includes(u.user_id) || followingIds.includes(`u_${u.username}`);
-      }
-      return true;
+      return targetFollowingIds.includes(u.user_id) || targetFollowingIds.includes(`u_${u.username}`);
+    }
+
+    if (activeSubTab === 'followers') {
+      return targetFollowerIds.includes(u.user_id) || targetFollowerIds.includes(`u_${u.username}`);
     }
 
     return true;
   });
+
+  const followersCount = targetFollowerIds.length;
 
   return (
     <div className="min-h-screen bg-white text-slate-900 pb-20 sm:pb-8 font-sans selection:bg-indigo-100 selection:text-indigo-900">
@@ -91,7 +134,7 @@ export const FollowsPage: React.FC = () => {
                 : 'text-slate-500 hover:text-slate-900'
             }`}
           >
-            Followers
+            Followers ({followersCount})
           </button>
           <button
             onClick={() => setSearchParams({ subtab: 'following' })}
@@ -101,7 +144,7 @@ export const FollowsPage: React.FC = () => {
                 : 'text-slate-500 hover:text-slate-900'
             }`}
           >
-            Following ({isTargetOwn ? followingIds.length : communityUsers.length > 0 ? 2 : 0})
+            Following ({targetFollowingIds.length})
           </button>
         </div>
 
