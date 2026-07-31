@@ -127,7 +127,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ defaultEngine = 'supabase' }
                 onClick={() => navigate('/feed')}
                 className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm flex items-center justify-center space-x-2 shadow-md transition"
               >
-                <span>Continue to Social Feed</span>
+                <span>Continue </span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 
