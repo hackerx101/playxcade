@@ -31,6 +31,7 @@ export interface UserProfile {
   created_at: string;
   needsProfileSetup?: boolean;
   is_2fa_enabled?: boolean;
+  totp_secret?: string;
   is_upgraded?: boolean;
   subscription_plan?: SubscriptionPlan;
   interests?: string[];
@@ -64,6 +65,7 @@ export interface Comment {
   user_id: string;
   author_username: string;
   author_avatar?: string;
+  author_email?: string;
   content: string;
   created_at: string;
 }
@@ -81,6 +83,7 @@ export interface Message {
   sender_id: string;
   sender_username?: string;
   sender_avatar?: string;
+  sender_email?: string;
   text: string;
   created_at: string;
   edited?: boolean;

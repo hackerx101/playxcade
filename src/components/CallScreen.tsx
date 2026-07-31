@@ -410,7 +410,7 @@ export const CallScreen: React.FC<CallScreenProps> = ({
                 <span className={`w-2 h-2 rounded-full ${isRinging ? 'bg-amber-400 animate-ping' : 'bg-emerald-500 animate-pulse'}`} />
               </h2>
               <p className="text-xs text-slate-300 font-mono flex items-center space-x-2">
-                <span>{isRinging ? 'Ringing speaker...' : (!isConnected ? 'Connecting...' : `Connected • ${formatTime(callDuration)}`)}</span>
+                <span>{isRinging ? 'Calling...' : (!isConnected ? 'Connecting...' : `Connected • ${formatTime(callDuration)}`)}</span>
                 <span>•</span>
                 <span className="text-emerald-400 font-sans font-semibold">WebRTC Peer Connection</span>
               </p>
@@ -440,14 +440,6 @@ export const CallScreen: React.FC<CallScreenProps> = ({
         {/* Real Call Video / Audio View Area */}
         <div className="flex-1 relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
           
-          {/* Ringing Sound Indicator Banner */}
-          {isRinging && (
-            <div className="absolute top-20 z-40 px-4 py-2 bg-indigo-600/90 backdrop-blur-md rounded-full text-white text-xs font-bold flex items-center space-x-2 shadow-lg animate-bounce">
-              <PhoneCall className="w-4 h-4 text-emerald-300" />
-              <span>Playing Ringing Sound over Speaker...</span>
-            </div>
-          )}
-
           {/* Voice Mode View or Video Off */}
           {isVideoOff ? (
             <div className="flex flex-col items-center justify-center space-y-6 z-10 p-6 text-center">
@@ -475,7 +467,7 @@ export const CallScreen: React.FC<CallScreenProps> = ({
               <div className="space-y-1">
                 <h3 className="text-xl font-extrabold text-white">Voice Call</h3>
                 <p className="text-xs text-slate-400">
-                  {isRinging ? 'Ringing recipient speaker...' : isMuted ? 'Your microphone is muted' : audioLevel > 15 ? 'Speaking...' : 'Connected • Audio output live'}
+                  {isRinging ? 'Calling...' : isMuted ? 'Your microphone is muted' : audioLevel > 15 ? 'Speaking...' : 'Connected • Audio output live'}
                 </p>
               </div>
 

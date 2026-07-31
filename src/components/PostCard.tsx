@@ -28,6 +28,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onCommentClick }) => {
   };
 
   const isGarexcellOfficial = post.author_username === 'garexcell' || post.is_official;
+  const hasGoldBadge = post.author_email?.toLowerCase().endsWith('@garexcell.com') || post.author_username === 'garexcell';
 
   return (
     <article className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mb-5 transition-all">
@@ -48,7 +49,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onCommentClick }) => {
                 className="font-bold text-slate-900 hover:underline text-sm flex items-center space-x-1"
               >
                 <span>@{post.author_username}</span>
-                {isGarexcellOfficial || post.author_is_verified ? (
+                {hasGoldBadge ? (
                   <span className="inline-flex items-center justify-center text-amber-500" title="Verified Gold Badge">
                     <CheckCircle2 className="w-4 h-4 fill-amber-500 text-white stroke-[2]" />
                   </span>

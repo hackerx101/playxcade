@@ -91,6 +91,7 @@ interface AuthContextType {
   editMessage: (messageId: string, newText: string, chatId: string) => Promise<void>;
   reportMessage: (messageId: string, reason: string) => Promise<void>;
   blockUser: (userId: string) => Promise<void>;
+  banUser: (userId: string) => Promise<void>;
   fetchCachedProfile: (userIdOrUsername: string) => Promise<UserProfile | null>;
   uploadFile: (file: File) => Promise<string>;
   onlineUsers: Record<string, string>;
@@ -262,7 +263,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             IsDeleted: false,
             account_status: data.account_status || 'active',
             appeal_status: 'none',
-            IsIdentityVerify: data.is_verified || false,
+            IsIdentityVerify: (data.email || '').toLowerCase().endsWith('@garexcell.com'),
             is_private: false,
             created_at: data.created_at || new Date().toISOString(),
             following: data.following || []
@@ -397,7 +398,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           account_status: status,
           limited_until: limitedUntil,
           appeal_status: data.appeal_status || 'none',
-          IsIdentityVerify: data.is_verified || isGarexcellEmail,
+          IsIdentityVerify: isGarexcellEmail,
           is_private: false,
           created_at: data.created_at || new Date().toISOString(),
           wallet_balance: data.wallet_balance || 0,
@@ -406,7 +407,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           strikes_count: data.strikes_count || 0,
           warnings_count: data.warnings_count || 0,
           needsProfileSetup: false,
-          is_2fa_enabled: data.is_2fa_enabled || false
+          is_2fa_enabled: data.is_2fa_enabled || false,
+          totp_secret: data.totp_secret || ''
         };
       } else {
         // Create initial document in Firestore
@@ -428,7 +430,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           followers_count: 0,
           following_count: 0,
           needsProfileSetup: false,
-          is_2fa_enabled: false
+          is_2fa_enabled: false,
+          totp_secret: ''
         };
 
         // Persist to Firestore & Supabase in background
@@ -939,6 +942,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
     if (updates.avatar_url) dbUpdates.avatar_url = updates.avatar_url;
     if (updates.is_2fa_enabled !== undefined) dbUpdates.is_2fa_enabled = updates.is_2fa_enabled;
+    if (updates.totp_secret !== undefined) dbUpdates.totp_secret = updates.totp_secret;
 
     await updateDoc(doc(db, 'profiles', user.user_id), dbUpdates);
     supabase.from('profiles').update(dbUpdates).eq('user_id', user.user_id).then(() => {});
@@ -1036,6 +1040,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user_id: user.user_id,
       author_username: user.username,
       author_avatar: user.avatar_url,
+      author_email: user.email,
       content: content.trim(),
       created_at: 'Just now'
     };
@@ -1102,6 +1107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             user_id: data.user_id,
             author_username: data.author_username || 'User',
             author_avatar: data.author_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.user_id}`,
+            author_email: data.author_email || '',
             content: data.content || '',
             created_at: data.created_at ? new Date(data.created_at).toLocaleString() : 'Recently'
           };
@@ -1124,6 +1130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             user_id: c.user_id,
             author_username: prof?.username || 'User',
             author_avatar: prof?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${c.user_id}`,
+            author_email: prof?.email || '',
             content: c.content || '',
             created_at: new Date(c.created_at).toLocaleString()
           };
@@ -1270,12 +1277,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user?.user_id, user?.username]);
 
+  // Anti-Spam state tracking maps
+  const lastSentMessages = useMemo(() => new Map<string, { text: string; timestamp: number }>(), []);
+  const userMessageRates = useMemo(() => new Map<string, number[]>(), []);
+
   const sendMessage = async (chatId: string, text: string, username?: string) => {
     if (!user) return;
     if (user.account_status === 'suspended' || user.account_status === 'permanently_disabled') {
       alert(`Account Suspended: Cannot send messages.`);
       return;
     }
+
+    // Anti-Spam Duplicate Check
+    const now = Date.now();
+    const lastMsg = lastSentMessages.get(user.user_id);
+    if (lastMsg && lastMsg.text === text.trim() && now - lastMsg.timestamp < 5000) {
+      alert("⚠️ Anti-Spam: Duplicate message detected. Please do not spam the channel.");
+      return;
+    }
+
+    // Anti-Spam Rate Limit Check (Max 5 messages per 10 seconds, and at least 800ms between messages)
+    const userTimes = userMessageRates.get(user.user_id) || [];
+    const recentTimes = userTimes.filter(t => now - t < 10000);
+    if (recentTimes.length >= 5) {
+      alert("⚠️ Anti-Spam Rate Limit: You are sending messages too quickly. Please wait 10 seconds.");
+      return;
+    }
+    if (recentTimes.length > 0 && now - recentTimes[recentTimes.length - 1] < 800) {
+      alert("⚠️ Anti-Spam: Please wait before sending another message.");
+      return;
+    }
+    recentTimes.push(now);
+    userMessageRates.set(user.user_id, recentTimes);
+    lastSentMessages.set(user.user_id, { text: text.trim(), timestamp: now });
 
     const modResult = analyzeTextContent(text || '');
     if (modResult.action === 'REJECT_AND_STRIKE') {
@@ -1322,6 +1356,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sender_id: user.user_id,
         sender_username: user.username,
         sender_avatar: user.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.user_id}`,
+        sender_email: user.email,
         text: text.trim(),
         created_at: nowTime,
         edited: false
@@ -1397,6 +1432,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const banUser = async (userId: string) => {
+    if (!user || !user.email?.toLowerCase().endsWith('@garexcell.com')) {
+      alert("Unauthorized: Only garexcell.com administrators can ban users.");
+      return;
+    }
+
+    try {
+      // 1. Update in Firestore
+      await updateDoc(doc(db, 'profiles', userId), {
+        account_status: 'suspended',
+        is_banned: true
+      });
+
+      // 2. Update in Supabase
+      await supabase
+        .from('profiles')
+        .update({ account_status: 'suspended' })
+        .eq('user_id', userId);
+
+      alert("User has been banned successfully across all networks.");
+    } catch (err: any) {
+      console.error("Failed to ban user:", err);
+      alert(`Error banning user: ${err.message}`);
+    }
+  };
+
   const joinRandomChat = () => {
     const channelIds = ['world-chat', 'general', 'gaming', 'lounge', 'squad'];
     const randomChannel = channelIds[Math.floor(Math.random() * channelIds.length)];
@@ -1413,7 +1474,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addRecentSearch, clearRecentSearches, removeRecentSearch, followingIds,
         login, signup, loginWithSupabase, signupWithSupabase, logout, completeOnboarding, createPost, deletePost, archivePost,
         likePost, addComment, fetchComments, toggleFollow, updateProfile, submitAppeal, verifyIdentity, restoreAccountStatus,
-        verifications, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, fetchCachedProfile, uploadFile, onlineUsers, joinRandomChat
+        verifications, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, banUser, fetchCachedProfile, uploadFile, onlineUsers, joinRandomChat
       }}
     >
       {children}

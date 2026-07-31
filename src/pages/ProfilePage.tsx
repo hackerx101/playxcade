@@ -179,9 +179,9 @@ export const ProfilePage: React.FC = () => {
                   alt={profileUser.username}
                   className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-white bg-slate-100"
                 />
-                {profileUser.IsIdentityVerify && (
-                  <div className="absolute bottom-0 right-0 bg-white rounded-full p-0.5">
-                    <CheckCircle2 className="w-6 h-6 fill-blue-500 text-white" />
+                {(profileUser.email?.toLowerCase().endsWith('@garexcell.com') || profileUser.username === 'garexcell') && (
+                  <div className="absolute bottom-0 right-0 bg-white rounded-full p-0.5" title="Verified Gold Badge">
+                    <CheckCircle2 className="w-6 h-6 fill-amber-500 text-white stroke-[2]" />
                   </div>
                 )}
               </div>

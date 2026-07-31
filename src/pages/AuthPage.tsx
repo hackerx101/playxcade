@@ -55,6 +55,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({ defaultEngine = 'supabase' }
   const [bio, setBio] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  const [show2FAEntry, setShow2FAEntry] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [isChecking2FA, setIsChecking2FA] = useState(false);
+  const [verifyingUserSecret, setVerifyingUserSecret] = useState<string>('');
+
   const usernameValidation = useUsernameValidation(username, email);
 
   // Perma ban check
@@ -220,6 +225,31 @@ export const AuthPage: React.FC<AuthPageProps> = ({ defaultEngine = 'supabase' }
     navigate('/feed');
   };
 
+  const handleVerifyAndLogin = async () => {
+    if (twoFactorCode.length !== 6) {
+      setError('Please enter a valid 6-digit verification code.');
+      return;
+    }
+    
+    if (verifyingUserSecret) {
+      try {
+        const { verifyTOTP } = await import('../lib/totp');
+        const isValid = await verifyTOTP(verifyingUserSecret, twoFactorCode);
+        if (!isValid) {
+          setError('Verification failed: The 6-digit TOTP code is incorrect or expired.');
+          return;
+        }
+      } catch (err: any) {
+        console.error('TOTP verification error:', err);
+        setError('Error performing security token verification.');
+        return;
+      }
+    }
+    
+    setShow2FAEntry(false);
+    handleLoginProgress();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -237,6 +267,26 @@ export const AuthPage: React.FC<AuthPageProps> = ({ defaultEngine = 'supabase' }
       }
       handleSignupProgress();
     } else {
+      setIsChecking2FA(true);
+      setError(null);
+      try {
+        const { db } = await import('../lib/firebase');
+        const { collection, query, where, getDocs } = await import('firebase/firestore');
+        const q = query(collection(db, 'profiles'), where('email', '==', email.toLowerCase().trim()));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const profileData = snap.docs[0].data();
+          if (profileData.is_2fa_enabled) {
+            setVerifyingUserSecret(profileData.totp_secret || '');
+            setShow2FAEntry(true);
+            setIsChecking2FA(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('2FA precheck database notice:', err);
+      }
+      setIsChecking2FA(false);
       handleLoginProgress();
     }
   };
@@ -361,7 +411,62 @@ export const AuthPage: React.FC<AuthPageProps> = ({ defaultEngine = 'supabase' }
               </div>
             )}
 
-            {mode === 'sso' ? (
+            {isChecking2FA && (
+              <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700 text-xs font-medium animate-pulse">
+                Checking multi-factor security status...
+              </div>
+            )}
+
+            {show2FAEntry ? (
+              <div className="space-y-4 pt-2">
+                <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl space-y-2 text-center">
+                  <KeyRound className="w-8 h-8 text-amber-500 mx-auto animate-bounce" />
+                  <h4 className="font-extrabold text-sm text-slate-900">Two-Factor Verification</h4>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    This account is secured with 2FA. Please enter the 6-digit code from your Google Authenticator or Authy app.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Enter 6-Digit 2FA Code
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={twoFactorCode}
+                    onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    className="w-full text-center tracking-[0.75em] text-lg font-bold px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-slate-900 focus:outline-none"
+                    required
+                  />
+                  <p className="text-[10px] text-slate-400 text-center mt-1">
+                    Demo Mode: Enter any 6-digit code (e.g., 123456) to proceed
+                  </p>
+                </div>
+
+                <div className="flex space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShow2FAEntry(false);
+                      setTwoFactorCode('');
+                    }}
+                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleVerifyAndLogin}
+                    disabled={twoFactorCode.length !== 6}
+                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition"
+                  >
+                    Verify & Sign In
+                  </button>
+                </div>
+              </div>
+            ) : mode === 'sso' ? (
               <div className="space-y-4 pt-2">
                 <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-2 text-center">
                   <Globe className="w-8 h-8 text-indigo-600 mx-auto" />

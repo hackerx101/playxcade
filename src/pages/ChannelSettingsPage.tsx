@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Copy, Check, Hash, Shield, Users, Trash2, Settings, Lock, Volume2, Bell, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Copy, Check, Hash, Shield, Users, Trash2, Settings, Lock, Volume2, Bell, AlertTriangle, Ban } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
 
@@ -19,7 +19,7 @@ function get12DigitChannelId(channelIdStr: string): string {
 export const ChannelSettingsPage: React.FC = () => {
   const { channelId } = useParams<{ channelId: string }>();
   const navigate = useNavigate();
-  const { user, fetchRealUsers } = useAuth();
+  const { user, fetchRealUsers, banUser } = useAuth();
   
   const [copied, setCopied] = useState(false);
   const [channelName, setChannelName] = useState(channelId ? channelId.replace('-', ' ') : 'General');
@@ -28,6 +28,12 @@ export const ChannelSettingsPage: React.FC = () => {
   const [isPrivate, setIsPrivate] = useState(false);
   const [members, setMembers] = useState<any[]>([]);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  const [mediaTypes, setMediaTypes] = useState<'all' | 'text-only' | 'no-links'>('all');
+  const [isArchived, setIsArchived] = useState(false);
+  const [filterLevel, setFilterLevel] = useState<'low' | 'medium' | 'strict'>('medium');
+
+  const isAdmin = user?.email?.toLowerCase().endsWith('@garexcell.com');
 
   const numeric12Id = get12DigitChannelId(channelId || 'general');
 
@@ -50,10 +56,7 @@ export const ChannelSettingsPage: React.FC = () => {
   };
 
   const handleRemoveMember = (memberId: string) => {
-    // Hidden permission: only users with email ending in garexcell.com can remove anyone
-    const canRemove = user?.email?.toLowerCase().endsWith('garexcell.com');
-    
-    if (!canRemove) {
+    if (!isAdmin) {
       alert("You do not have permission to remove members from this channel.");
       return;
     }
@@ -61,8 +64,24 @@ export const ChannelSettingsPage: React.FC = () => {
     setMembers(prev => prev.filter(m => m.user_id !== memberId));
   };
 
+  const handleBanMember = async (memberId: string) => {
+    if (!isAdmin) {
+      alert("You do not have permission to ban users.");
+      return;
+    }
+
+    if (confirm("Are you sure you want to permanently ban this user across the entire network? This will suspend their profile in Firebase and Supabase.")) {
+      await banUser(memberId);
+      setMembers(prev => prev.filter(m => m.user_id !== memberId));
+    }
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      alert("Error: Only channel administrators with @garexcell.com domains can save changes.");
+      return;
+    }
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
   };
@@ -129,6 +148,13 @@ export const ChannelSettingsPage: React.FC = () => {
           {/* Main Settings Form */}
           <div className="lg:col-span-2 space-y-6">
             
+            {!isAdmin && (
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl text-slate-300 text-xs font-semibold flex items-center space-x-3.5 leading-relaxed">
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                <span><strong>Read-Only View:</strong> Only channel administrators with <strong>@garexcell.com</strong> domains can modify these settings. Your changes will not be saved.</span>
+              </div>
+            )}
+
             <form onSubmit={handleSave} className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 space-y-5">
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
                 <Hash className="w-4 h-4 text-indigo-400" />
@@ -140,8 +166,9 @@ export const ChannelSettingsPage: React.FC = () => {
                 <input
                   type="text"
                   value={channelName}
+                  disabled={!isAdmin}
                   onChange={(e) => setChannelName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-slate-950 border border-slate-800 disabled:opacity-50 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
@@ -150,12 +177,48 @@ export const ChannelSettingsPage: React.FC = () => {
                 <textarea
                   rows={3}
                   value={channelDesc}
+                  disabled={!isAdmin}
                   onChange={(e) => setChannelDesc(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-slate-950 border border-slate-800 disabled:opacity-50 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
+              {/* Extra Channel Settings Requested by User */}
               <div className="pt-4 border-t border-slate-800 space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Moderation & Posting Controls</h3>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-2">Allowed Media Formats</label>
+                  <select
+                    value={mediaTypes}
+                    disabled={!isAdmin}
+                    onChange={(e) => setMediaTypes(e.target.value as any)}
+                    className="w-full bg-slate-950 border border-slate-800 disabled:opacity-50 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="all">Allow All (Text, Images, External Links, Videos)</option>
+                    <option value="text-only">Text Only (Block attachments & images)</option>
+                    <option value="no-links">No Hyperlinks (Spam defense)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-2">AI Content Moderator Level</label>
+                  <select
+                    value={filterLevel}
+                    disabled={!isAdmin}
+                    onChange={(e) => setFilterLevel(e.target.value as any)}
+                    className="w-full bg-slate-950 border border-slate-800 disabled:opacity-50 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="low">Low Filter (Rely on manual reports)</option>
+                    <option value="medium">Medium Filter (Auto block severe violations)</option>
+                    <option value="strict">Strict Filter (Block any potential spam/advertising)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-800 space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Channel Status & State</h3>
+
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-xs font-semibold text-white block">Slow Mode</span>
@@ -163,8 +226,9 @@ export const ChannelSettingsPage: React.FC = () => {
                   </div>
                   <button
                     type="button"
+                    disabled={!isAdmin}
                     onClick={() => setIsSlowMode(!isSlowMode)}
-                    className={`w-11 h-6 rounded-full transition-colors relative ${isSlowMode ? 'bg-indigo-600' : 'bg-slate-800'}`}
+                    className={`w-11 h-6 rounded-full transition-colors relative disabled:opacity-50 ${isSlowMode ? 'bg-indigo-600' : 'bg-slate-800'}`}
                   >
                     <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isSlowMode ? 'left-6' : 'left-1'}`} />
                   </button>
@@ -177,19 +241,36 @@ export const ChannelSettingsPage: React.FC = () => {
                   </div>
                   <button
                     type="button"
+                    disabled={!isAdmin}
                     onClick={() => setIsPrivate(!isPrivate)}
-                    className={`w-11 h-6 rounded-full transition-colors relative ${isPrivate ? 'bg-indigo-600' : 'bg-slate-800'}`}
+                    className={`w-11 h-6 rounded-full transition-colors relative disabled:opacity-50 ${isPrivate ? 'bg-indigo-600' : 'bg-slate-800'}`}
                   >
                     <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isPrivate ? 'left-6' : 'left-1'}`} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-white block">Archive Channel (Read-Only)</span>
+                    <span className="text-[11px] text-slate-400 block">Close the channel to active conversations while keeping history</span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!isAdmin}
+                    onClick={() => setIsArchived(!isArchived)}
+                    className={`w-11 h-6 rounded-full transition-colors relative disabled:opacity-50 ${isArchived ? 'bg-indigo-600' : 'bg-slate-800'}`}
+                  >
+                    <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isArchived ? 'left-6' : 'left-1'}`} />
                   </button>
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-indigo-600/20"
+                disabled={!isAdmin}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs transition shadow-lg shadow-indigo-600/20"
               >
-                Save Channel Changes
+                {isAdmin ? "Save Channel Changes" : "Save Changes (Administrator Only)"}
               </button>
             </form>
 
@@ -214,13 +295,26 @@ export const ChannelSettingsPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleRemoveMember(member.user_id)}
-                      className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
-                      title="Remove Member"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center space-x-1">
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleBanMember(member.user_id)}
+                          className="p-1.5 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition"
+                          title="Ban User (Supabase & Firebase)"
+                        >
+                          <Ban className="w-3.5 h-3.5 text-rose-500" />
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleRemoveMember(member.user_id)}
+                        disabled={!isAdmin}
+                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-30 rounded-lg transition"
+                        title="Remove Member"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Send, Hash, Video, Phone, Users, Shield, Smile, MessageSquare, ChevronDown, Ban, Search, Gift, Wand2, Sparkles, Mic, Trash2, Settings, Globe, Shuffle } from 'lucide-react';
+import { Send, Hash, Video, Phone, Users, Shield, Smile, MessageSquare, ChevronDown, Ban, Search, Gift, Wand2, Sparkles, Mic, Trash2, Settings, Globe, Shuffle, CheckCircle2 } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
 import { useAuth } from '../context/AuthContext';
@@ -221,7 +221,23 @@ export const ChatPage: React.FC = () => {
     setInputText((prev) => prev + emoji);
   };
 
-  const startCall = (type: 'video' | 'voice') => {
+  const startCall = async (type: 'video' | 'voice') => {
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        if (type === 'video') {
+          // Explicitly request both microphone and camera permissions for the current browser
+          await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        } else {
+          // Explicitly request microphone-only permission for the current browser
+          await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+      }
+    } catch (err: any) {
+      console.warn('Media access permission denied or unavailable:', err);
+      alert(`Permission Denied: Could not initiate the ${type} call. Please enable ${type === 'video' ? 'microphone and camera' : 'microphone'} access in your browser settings.`);
+      return;
+    }
+
     setIsInitiator(true);
     setIncomingOffer(undefined);
     setActiveCall(type);
@@ -679,9 +695,14 @@ export const ChatPage: React.FC = () => {
                               <div className={`flex items-baseline space-x-2 mb-1 relative ${isMine ? 'flex-row-reverse space-x-reverse' : ''}`}>
                                 <Link 
                                   to={`/profile/${msg.sender_username || msg.sender_id}`}
-                                  className={`text-xs font-bold ${isMine ? 'text-indigo-400' : 'text-slate-300 hover:underline'}`}
+                                  className={`text-xs font-bold flex items-center space-x-1 ${isMine ? 'text-indigo-400' : 'text-slate-300 hover:underline'}`}
                                 >
-                                  {isMine ? (user?.username ? `@${user.username}` : 'You') : `@${msg.sender_username || msg.sender_id || 'User'}`}
+                                  <span>{isMine ? (user?.username ? `@${user.username}` : 'You') : `@${msg.sender_username || msg.sender_id || 'User'}`}</span>
+                                  {((isMine && user?.email?.toLowerCase().endsWith('@garexcell.com')) || 
+                                    (!isMine && msg.sender_email?.toLowerCase().endsWith('@garexcell.com')) ||
+                                    (msg.sender_username?.toLowerCase() === 'garexcell')) && (
+                                    <CheckCircle2 className="w-3 h-3 fill-amber-500 text-white stroke-[2]" title="Verified Gold Badge" />
+                                  )}
                                 </Link>
                                 <span className="text-[10px] text-slate-500">
                                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

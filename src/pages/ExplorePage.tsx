@@ -13,6 +13,7 @@ interface SearchUser {
   avatar: string;
   bio: string;
   followers: number;
+  email?: string;
 }
 
 export const ExplorePage: React.FC = () => {
@@ -26,7 +27,8 @@ export const ExplorePage: React.FC = () => {
           username: p.username,
           avatar: p.avatar_url,
           bio: p.bio,
-          followers: 0
+          followers: 0,
+          email: p.email
         })));
       }
     });
@@ -170,7 +172,9 @@ export const ExplorePage: React.FC = () => {
                     <div>
                       <div className="flex items-center space-x-1">
                         <span className="font-bold text-sm text-slate-900">@{u.username}</span>
-                        <CheckCircle2 className="w-3.5 h-3.5 fill-amber-500 text-white stroke-[2]" />
+                        {(u.email?.toLowerCase().endsWith('@garexcell.com') || u.username === 'garexcell') && (
+                          <CheckCircle2 className="w-3.5 h-3.5 fill-amber-500 text-white stroke-[2]" />
+                        )}
                       </div>
                       <p className="text-xs text-slate-500 truncate max-w-[180px] sm:max-w-sm">{u.bio || 'Garexcell Network Creator'}</p>
                     </div>

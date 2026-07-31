@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Globe, Shield, Tv, Check, User, Lock, Mail, ChevronRight, Bell, HelpCircle, LogOut, Sparkles, Smartphone, Key, FileText, Activity, Trash2, Link as LinkIcon, Wallet, 
+  Globe, Shield, ShieldCheck, Tv, Check, User, Lock, Mail, ChevronRight, Bell, HelpCircle, LogOut, Sparkles, Smartphone, Key, FileText, Activity, Trash2, Link as LinkIcon, Wallet, 
 Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
@@ -9,6 +9,7 @@ import { IOSBackButton } from '../components/IOSBackButton';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { generateSecret, verifyTOTP, getTOTPQRUrl } from '../lib/totp';
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -39,6 +40,7 @@ export const SettingsPage: React.FC = () => {
     | 'streaming'
     | 'subscription'
     | 'reports'
+    | 'badge_application'
   >('main');
 
   // Form states
@@ -66,6 +68,25 @@ export const SettingsPage: React.FC = () => {
   const [otpInput, setOtpInput] = useState<string>('');
   const [generatedOtpCode, setGeneratedOtpCode] = useState<string>('');
   const [isVerifying2FA, setIsVerifying2FA] = useState<boolean>(false);
+  const [totpSecret, setTotpSecret] = useState<string>('');
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+
+  useEffect(() => {
+    if (screen === 'two_factor' && !twoFactorEnabled && !totpSecret) {
+      const secret = generateSecret(16);
+      setTotpSecret(secret);
+      setQrCodeUrl(getTOTPQRUrl(user?.username || 'user', secret));
+    }
+  }, [screen, twoFactorEnabled, totpSecret, user?.username]);
+
+  // Badge application states
+  const [badgeName, setBadgeName] = useState(user?.username || '');
+  const [badgeDob, setBadgeDob] = useState(user?.dob || '2000-01-01');
+  const [badgeEmail, setBadgeEmail] = useState(user?.email || '');
+  const [badgeLinks, setBadgeLinks] = useState('');
+  const [badgeIdFileName, setBadgeIdFileName] = useState('');
+  const [badgeSubmitting, setBadgeSubmitting] = useState(false);
+  const [badgeSuccess, setBadgeSuccess] = useState(false);
 
   // Submenu preference states
   const [textSize, setTextSize] = useState('Medium');
@@ -147,6 +168,7 @@ export const SettingsPage: React.FC = () => {
               {screen === 'security' && 'Security & Login'}
               {screen === 'streaming' && 'Cloud Gaming & Streaming'}
               {screen === 'subscription' && 'Subscriptions & Plans'}
+              {screen === 'badge_application' && 'Gold Badge Application'}
             </h1>
             <p className="text-xs text-slate-500 font-medium">
               {screen === 'main' ? 'Manage your account and app preferences' : 'Security & Privacy Control Center'}
@@ -453,7 +475,7 @@ export const SettingsPage: React.FC = () => {
             <div className="space-y-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => showNotification('Verification badge request submitted to Trust & Safety.')}
+                onClick={() => setScreen('badge_application')}
                 className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center space-x-2"
               >
                 <Sparkles className="w-4 h-4" />
@@ -595,27 +617,132 @@ export const SettingsPage: React.FC = () => {
 
         {/* 9. TWO-FACTOR AUTHENTICATION */}
         {screen === 'two_factor' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5">
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <div>
-                <h4 className="font-bold text-xs text-slate-900">Authenticator App (TOTP)</h4>
-                <p className="text-[11px] text-slate-500">Use Google Authenticator or Authy for secure 6-digit codes.</p>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h3 className="text-sm font-bold text-slate-900">Multi-Factor Authenticator Setup</h3>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Add an extra layer of security to your account. Once configured, you will be prompted to enter a 6-digit TOTP validation code from Google Authenticator or Authy whenever you log in.
+              </p>
+            </div>
+
+            {twoFactorEnabled ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-start space-x-3 text-emerald-900 text-xs">
+                  <ShieldCheck className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold">Two-Factor Authentication is Enabled</p>
+                    <p className="text-slate-600 leading-relaxed">
+                      Your account is protected by an authenticator application. When signing in, your 6-digit TOTP validation key will be requested.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (confirm("Are you sure you want to disable Two-Factor Authentication? This will make your account less secure.")) {
+                      setTwoFactorEnabled(false);
+                      await updateProfile({ is_2fa_enabled: false });
+                      showNotification('Two-Factor Authentication disabled successfully.');
+                    }
+                  }}
+                  className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-xl transition"
+                >
+                  Disable Two-Factor Authentication
+                </button>
               </div>
-              <input
-                type="checkbox"
-                checked={twoFactorEnabled}
-                onChange={(e) => {
-                  const enabled = e.target.checked;
-                  setTwoFactorEnabled(enabled);
-                  updateProfile({ is_2fa_enabled: enabled });
-                  showNotification(enabled ? '2FA enabled successfully' : '2FA disabled');
-                }}
-                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-              />
-            </div>
-            <div className="p-4 bg-indigo-50 rounded-xl text-xs text-indigo-900 font-medium">
-              Your account is currently secured with multi-factor authentication.
-            </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex items-start space-x-3 text-amber-900 text-xs">
+                  <Key className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold">Pairing Your Device</p>
+                    <p className="text-slate-600 leading-relaxed">
+                      Follow the steps below to establish Two-Factor Authentication with Google Authenticator or Authy on your mobile phone.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 1: Download App */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold text-slate-800">Step 1: Install Authenticator Application</p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Download and open Google Authenticator or Authy from the App Store or Google Play Store.
+                  </p>
+                </div>
+
+                {/* Step 2: Scan QR or enter Secret Key */}
+                <div className="space-y-3 pt-2 border-t border-slate-100">
+                  <p className="text-xs font-bold text-slate-800">Step 2: Scan the QR Code or Manual Entry Key</p>
+                  
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-5">
+                    {qrCodeUrl ? (
+                      <div className="p-2.5 bg-white border border-slate-200 rounded-xl shrink-0 shadow-sm">
+                        <img src={qrCodeUrl} alt="TOTP QR Code" className="w-32 h-32" referrerPolicy="no-referrer" />
+                      </div>
+                    ) : (
+                      <div className="w-32 h-32 bg-slate-100 rounded-xl flex items-center justify-center animate-pulse border border-slate-200 shrink-0">
+                        <span className="text-[10px] text-slate-400">Generating QR...</span>
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5 text-xs text-slate-600 flex-1">
+                      <p>Scan the code or enter this manual key inside your authenticator application:</p>
+                      <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold text-slate-900 tracking-wider select-all flex justify-between items-center text-[11px]">
+                        <span>{totpSecret || 'Generating secret...'}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">
+                        Enter this secret key manually if you cannot scan the QR code.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 3: Enter confirmation OTP */}
+                <div className="space-y-3 pt-3 border-t border-slate-100">
+                  <p className="text-xs font-bold text-slate-800">Step 3: Verify & Save</p>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Enter 6-Digit Code</label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={otpInput}
+                      onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                      placeholder="e.g., 123456"
+                      className="w-full text-center max-w-[200px] tracking-[0.5em] text-sm font-bold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (otpInput.length !== 6) {
+                        alert("Please enter a 6-digit verification code.");
+                        return;
+                      }
+                      try {
+                        const { verifyTOTP } = await import('../lib/totp');
+                        const isValid = await verifyTOTP(totpSecret, otpInput);
+                        if (isValid) {
+                          setTwoFactorEnabled(true);
+                          await updateProfile({ is_2fa_enabled: true, totp_secret: totpSecret });
+                          setOtpInput('');
+                          showNotification('Two-Factor Authentication is now active on your profile.');
+                        } else {
+                          alert("Invalid verification code: Please check your authenticator application.");
+                        }
+                      } catch (err: any) {
+                        console.error("2FA validation error:", err);
+                        alert("Error validating security token.");
+                      }
+                    }}
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition"
+                  >
+                    Confirm Code & Enable 2FA
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -644,6 +771,158 @@ export const SettingsPage: React.FC = () => {
             >
               Confirm & Deactivate Account
             </button>
+          </form>
+        )}
+
+        {/* 11. GOLD BADGE APPLICATION FORM */}
+        {screen === 'badge_application' && (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!badgeName || !badgeEmail || !badgeDob || !badgeLinks || !badgeIdFileName) {
+                alert("Please complete all fields, including ID upload and channel links.");
+                return;
+              }
+              setBadgeSubmitting(true);
+              
+              try {
+                const { db } = await import('../lib/firebase');
+                const { collection, addDoc } = await import('firebase/firestore');
+                await addDoc(collection(db, 'badge_applications'), {
+                  user_id: user?.user_id,
+                  username: user?.username,
+                  fullName: badgeName,
+                  dob: badgeDob,
+                  email: badgeEmail,
+                  channel_links: badgeLinks,
+                  id_file_name: badgeIdFileName,
+                  status: 'pending',
+                  created_at: new Date().toISOString()
+                });
+
+                setBadgeSuccess(true);
+                showNotification('Your verification badge application has been submitted successfully.');
+                setTimeout(() => {
+                  setBadgeSuccess(false);
+                  setScreen('accounts_management');
+                }, 3000);
+              } catch (err: any) {
+                console.error("Badge application error:", err);
+                alert(`Error submitting application: ${err.message}`);
+              } finally {
+                setBadgeSubmitting(false);
+              }
+            }}
+            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5"
+          >
+            <div className="border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900">Gold Verification Badge Application</h3>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Apply for the prestigious gold verification badge on Garexcell Network. Provide your legal identity information and community links to verify your creator status.
+              </p>
+            </div>
+
+            {badgeSuccess && (
+              <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-800 text-xs font-bold text-center">
+                🎉 APPLICATION SUBMITTED! Trust & Safety will review your uploaded details.
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-700 uppercase">Legal Full Name</label>
+                <input
+                  type="text"
+                  value={badgeName}
+                  onChange={(e) => setBadgeName(e.target.value)}
+                  placeholder="e.g., Jane Doe"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-700 uppercase">Date of Birth</label>
+                <input
+                  type="date"
+                  value={badgeDob}
+                  onChange={(e) => setBadgeDob(e.target.value)}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-slate-700 uppercase">Verification Email</label>
+              <input
+                type="email"
+                value={badgeEmail}
+                onChange={(e) => setBadgeEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-slate-700 uppercase">Channel / Profile Links</label>
+              <textarea
+                rows={2}
+                value={badgeLinks}
+                onChange={(e) => setBadgeLinks(e.target.value)}
+                placeholder="e.g. https://garexcell.com/channel/live, https://youtube.com/c/yourname"
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+              />
+              <p className="text-[9px] text-slate-400">Provide URL links to your streaming channels or profiles.</p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold text-slate-700 uppercase">Upload Government ID Document</label>
+              <div className="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-4 text-center cursor-pointer relative bg-slate-50 hover:bg-slate-50/50 transition">
+                <input
+                  type="file"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setBadgeIdFileName(file.name);
+                    }
+                  }}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  accept="image/*,.pdf"
+                  required
+                />
+                <div className="space-y-1">
+                  <div className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-sm inline-block">
+                    <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-700">
+                    {badgeIdFileName ? `Selected File: ${badgeIdFileName}` : 'Select or drop government passport/ID file'}
+                  </p>
+                  <p className="text-[9px] text-slate-400">Supported types: JPG, PNG, PDF (Max 10MB)</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setScreen('accounts_management')}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={badgeSubmitting || badgeSuccess}
+                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md transition"
+              >
+                {badgeSubmitting ? 'Submitting Application...' : 'Submit Gold Badge Application'}
+              </button>
+            </div>
           </form>
         )}
 
