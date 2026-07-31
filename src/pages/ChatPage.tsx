@@ -6,6 +6,7 @@ import { BottomBar } from '../components/BottomBar';
 import { useAuth } from '../context/AuthContext';
 import { CallScreen } from '../components/CallScreen';
 import { IncomingCallModal } from '../components/IncomingCallModal';
+import { UpgradePromptModal } from '../components/UpgradePromptModal';
 import { UserProfile } from '../types';
 
 const DEFAULT_CHANNELS = [
@@ -21,7 +22,7 @@ const DEFAULT_CHANNELS = [
 const POPULAR_EMOJIS = ['😊', '😂', '🔥', '🎮', '👍', '🚀', '❤️', '💯', '🙏', '🙌', '⚡', '🎉', '🕹️', '🏆', '😎', '🍿', '👏', '💬', '💙', '💥'];
 
 export const ChatPage: React.FC = () => {
-  const { messages, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, user, chats, onlineUsers, joinRandomChat, fetchRealUsers, unreadCountsBySender, markChatAsRead } = useAuth();
+  const { messages, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, user, chats, onlineUsers, joinRandomChat, fetchRealUsers, unreadCountsBySender, markChatAsRead, isSyncEnabled, toggleSync, isUpgradePromptOpen, setUpgradePromptOpen } = useAuth();
   const { username: roomParam } = useParams<{ username: string }>(); 
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -254,6 +255,23 @@ export const ChatPage: React.FC = () => {
   };
 
   const declineCall = () => {
+    if (incomingCall) {
+      const isPrivateCall = incomingCall.roomId.startsWith('dm_');
+      if (isPrivateCall && user) {
+        // Send a call-end signaling message so the caller knows it was declined
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
+        const ws = new WebSocket(wsUrl);
+        ws.onopen = () => {
+          ws.send(JSON.stringify({
+            type: 'call-end',
+            roomId: incomingCall.roomId,
+            targetUserId: selectedRoom.startsWith('dm_') ? selectedRoom.replace('dm_', '') : undefined
+          }));
+          setTimeout(() => ws.close(), 500);
+        };
+      }
+    }
     setIncomingCall(null);
   };
 
@@ -286,6 +304,7 @@ export const ChatPage: React.FC = () => {
       {activeCall && (
         <CallScreen 
           type={activeCall} 
+          channelId={selectedRoom}
           channelName={activeChannel.name} 
           onEndCall={() => { setActiveCall(null); setIncomingOffer(undefined); }} 
           appId={CLOUDFLARE_APP_ID}
@@ -540,6 +559,28 @@ export const ChatPage: React.FC = () => {
                   </div>
                 );
               })}
+            </div>
+
+            {/* Real-time Sync Switch Panel */}
+            <div className="mt-4 pt-4 border-t border-slate-800/80 px-2 pb-2">
+              <div className="bg-slate-900/60 border border-slate-800/60 rounded-2xl p-3.5 flex items-center justify-between shadow-inner">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold text-slate-200">Real-time Sync</p>
+                  <p className="text-[10px] text-slate-500">Live feed snapshot updates</p>
+                </div>
+                <button
+                  onClick={toggleSync}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    isSyncEnabled ? 'bg-indigo-600' : 'bg-slate-700'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      isSyncEnabled ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
 
           </div>
@@ -1020,6 +1061,7 @@ export const ChatPage: React.FC = () => {
           </div>
         </div>
       )}
+      <UpgradePromptModal isOpen={isUpgradePromptOpen} onClose={() => setUpgradePromptOpen(false)} />
       <BottomBar />
     </div>
   );

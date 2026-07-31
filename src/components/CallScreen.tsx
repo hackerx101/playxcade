@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 
 interface CallScreenProps {
   type: 'video' | 'voice';
+  channelId: string;
   channelName: string;
   onEndCall: () => void;
   isInitiator?: boolean;
@@ -79,6 +80,7 @@ function createRingtonePlayer() {
 
 export const CallScreen: React.FC<CallScreenProps> = ({
   type,
+  channelId,
   channelName,
   onEndCall,
   isInitiator = true,
@@ -96,6 +98,13 @@ export const CallScreen: React.FC<CallScreenProps> = ({
   const [isConnected, setIsConnected] = useState(false);
   const [isRinging, setIsRinging] = useState(true);
   const [peerConnected, setPeerConnected] = useState(false);
+  const [remotePeerUsername, setRemotePeerUsername] = useState<string>(() => {
+    if (!isInitiator) {
+      // If we are not the initiator, the channelName is likely the caller name in DMs
+      return channelName || 'Caller';
+    }
+    return 'Gamer';
+  });
 
   const mainVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -205,7 +214,7 @@ export const CallScreen: React.FC<CallScreenProps> = ({
             type: 'ice-candidate',
             candidate: event.candidate,
             targetUserId,
-            roomId: channelName,
+            roomId: channelId,
           })
         );
       }
@@ -274,7 +283,7 @@ export const CallScreen: React.FC<CallScreenProps> = ({
           type: 'register',
           userId: currentUserId,
           username: currentUsername,
-          roomId: channelName,
+          roomId: channelId,
         })
       );
 
@@ -290,7 +299,7 @@ export const CallScreen: React.FC<CallScreenProps> = ({
               type: 'call-offer',
               callType: type,
               offer,
-              roomId: channelName,
+              roomId: channelId,
               targetUserId,
             })
           );
@@ -308,7 +317,7 @@ export const CallScreen: React.FC<CallScreenProps> = ({
             JSON.stringify({
               type: 'call-answer',
               answer,
-              roomId: channelName,
+              roomId: channelId,
               targetUserId,
             })
           );

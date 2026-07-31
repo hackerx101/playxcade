@@ -93,22 +93,22 @@ export const CheckoutPage: React.FC = () => {
             }
           } catch (err: any) {
             console.error("PayPal Capture Error:", err);
-            setError(err.message || 'Error executing and verifying your subscription payment .');
+            setError(err.message || 'Error executing and verifying your subscription payment with PayPal.');
           } finally {
             setLoading(false);
           }
         },
         onError: (err: any) => {
           console.error("PayPal SDK Error:", err);
-          setError('A secure communication error occurred . Please check your card balance or try a different payment method.');
+          setError('A secure communication error occurred with PayPal. Please check your card balance or try a different payment method.');
         },
         onCancel: (data: any) => {
-          setError('Transaction was cancelled. You can retry paying using the link below.');
+          setError('Transaction was cancelled. You can retry paying using the PayPal controls below.');
         }
       }).render('#paypal-button-container');
     } catch (renderErr: any) {
       console.error("Error rendering PayPal buttons:", renderErr);
-      setError('Could not initialize the checkout gateway.');
+      setError('Could not initialize the PayPal checkout gateway.');
     }
   }, [sdkReady, amount, plan, success, updateProfile]);
 
@@ -202,7 +202,7 @@ export const CheckoutPage: React.FC = () => {
                       {loading && (
                         <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center space-x-3 text-indigo-900 text-xs font-bold">
                           <Loader2 className="w-4 h-4 text-indigo-600 animate-spin shrink-0" />
-                          <span>Verifying your  payment status ...</span>
+                          <span>Verifying your real-time payment approval with PayPal...</span>
                         </div>
                       )}
                       
@@ -215,7 +215,7 @@ export const CheckoutPage: React.FC = () => {
 
                 <p className="text-center text-xs text-slate-400 font-semibold flex items-center justify-center space-x-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                  <span> PayPal Gateway.  Sandbox Disabled .</span>
+                  <span>Real PayPal Gateway. No Simulated Sandbox.</span>
                 </p>
               </>
             )}

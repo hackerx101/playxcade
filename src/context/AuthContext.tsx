@@ -41,6 +41,8 @@ import { isReservedUsername, sanitizeDatabaseError } from '../lib/validation';
 import { analyzeTextContent } from '../lib/moderation';
 import { sendSuspensionEmail } from '../lib/resendService';
 
+export const PAY_TO_SEND_UNLIMITED_MESSAGES = true;
+
 interface AuthContextType {
   user: UserProfile | null;
   authProviderType: 'firebase' | 'supabase';
@@ -96,6 +98,10 @@ interface AuthContextType {
   uploadFile: (file: File) => Promise<string>;
   onlineUsers: Record<string, string>;
   joinRandomChat: () => string | null;
+  isSyncEnabled: boolean;
+  toggleSync: () => void;
+  isUpgradePromptOpen: boolean;
+  setUpgradePromptOpen: (val: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -117,6 +123,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [verifications, setVerifications] = useState<IdentityVerification[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Record<string, string>>({});
+
+  const [isSyncEnabled, setIsSyncEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('garexcell_sync_messages');
+      return saved !== 'false';
+    } catch (e) {
+      return true;
+    }
+  });
+
+  const toggleSync = useCallback(() => {
+    setIsSyncEnabled(prev => {
+      const newVal = !prev;
+      try {
+        localStorage.setItem('garexcell_sync_messages', String(newVal));
+      } catch (e) {}
+      return newVal;
+    });
+  }, []);
+
+  const [isUpgradePromptOpen, setUpgradePromptOpen] = useState(false);
 
   // Presence tracking
   useEffect(() => {
@@ -1237,6 +1264,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setMessages(cachedMsgs);
     }
 
+    const processMessagesList = (list: Message[]) => {
+      return list.filter(m => m.sender_id !== 'system_init' && m.sender_id !== 'system' && !m.text.startsWith('[CALL_STARTED:'));
+    };
+
+    if (!isSyncEnabled) {
+      // If sync is disabled, perform a one-time fetch to populate cache and state without active listener
+      try {
+        const msgsRef = collection(db, 'messages');
+        const q = query(msgsRef, where('chat_id', '==', chatId));
+        getDocs(q).then((querySnap) => {
+          const msgs: Message[] = querySnap.docs
+            .map(docSnap => {
+              const d = docSnap.data();
+              return {
+                id: docSnap.id,
+                chat_id: d.chat_id,
+                sender_id: d.sender_id,
+                sender_username: d.sender_username || (d.sender_id === user?.user_id ? user?.username : 'User'),
+                sender_avatar: d.sender_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${d.sender_id}`,
+                text: d.text || '',
+                created_at: d.created_at || new Date().toISOString(),
+                edited: d.edited || false
+              };
+            })
+            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+          const filteredMsgs = processMessagesList(msgs);
+          appCache.setMessages(chatId, filteredMsgs);
+          setMessages(filteredMsgs);
+          try {
+            localStorage.setItem(`playxcade_msgs_${chatId}`, JSON.stringify(filteredMsgs));
+          } catch (e) {}
+        }).catch(err => {
+          console.warn('One-off Firestore messages fetch warning:', err);
+        });
+      } catch (err) {
+        console.warn('One-off messages load error:', err);
+      }
+      return () => {}; // return dummy unsubscriber
+    }
+
     try {
       const msgsRef = collection(db, 'messages');
       const q = query(msgsRef, where('chat_id', '==', chatId));
@@ -1260,10 +1328,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             })
             .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-          appCache.setMessages(chatId, msgs);
-          setMessages(msgs);
+          const filteredMsgs = processMessagesList(msgs);
+          appCache.setMessages(chatId, filteredMsgs);
+          setMessages(filteredMsgs);
           try {
-            localStorage.setItem(`playxcade_msgs_${chatId}`, JSON.stringify(msgs));
+            localStorage.setItem(`playxcade_msgs_${chatId}`, JSON.stringify(filteredMsgs));
           } catch (e) {}
         },
         (err) => {
@@ -1286,6 +1355,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user.account_status === 'suspended' || user.account_status === 'permanently_disabled') {
       alert(`Account Suspended: Cannot send messages.`);
       return;
+    }
+
+    const isUpgraded = user?.is_upgraded === true || user?.subscription_plan === 'pro' || user?.subscription_plan === 'premium';
+    const isCallMsg = text.trim().startsWith('[CALL_STARTED:');
+
+    // Message limit check for free tier
+    if (PAY_TO_SEND_UNLIMITED_MESSAGES && !isUpgraded && !isCallMsg) {
+      const storageKey = `garexcell_msg_count_${user.user_id}`;
+      const sentCount = Number(localStorage.getItem(storageKey) || '0');
+      if (sentCount >= 2) {
+        setUpgradePromptOpen(true);
+        return;
+      }
     }
 
     // Anti-Spam Duplicate Check
@@ -1373,8 +1455,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return updated;
       });
 
-      // Store in Firebase Firestore 'messages' collection
-      await setDoc(doc(db, 'messages', msgId), newMsgDoc);
+      // Store in Firebase Firestore ONLY if it is not a system calling message
+      if (!isCallMsg) {
+        await setDoc(doc(db, 'messages', msgId), newMsgDoc);
+
+        // Increment sent messages count for free users
+        if (PAY_TO_SEND_UNLIMITED_MESSAGES && !isUpgraded) {
+          const storageKey = `garexcell_msg_count_${user.user_id}`;
+          const sentCount = Number(localStorage.getItem(storageKey) || '0');
+          localStorage.setItem(storageKey, String(sentCount + 1));
+        }
+      }
 
       // Identify target recipient for notification
       if (!targetUserId) {
@@ -1384,7 +1475,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      if (targetUserId && targetUserId !== user.user_id) {
+      if (targetUserId && targetUserId !== user.user_id && !isCallMsg) {
         addDoc(collection(db, 'notifications'), {
           recipient_id: targetUserId,
           sender_id: user.user_id,
@@ -1474,7 +1565,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addRecentSearch, clearRecentSearches, removeRecentSearch, followingIds,
         login, signup, loginWithSupabase, signupWithSupabase, logout, completeOnboarding, createPost, deletePost, archivePost,
         likePost, addComment, fetchComments, toggleFollow, updateProfile, submitAppeal, verifyIdentity, restoreAccountStatus,
-        verifications, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, banUser, fetchCachedProfile, uploadFile, onlineUsers, joinRandomChat
+        verifications, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, banUser, fetchCachedProfile, uploadFile, onlineUsers, joinRandomChat,
+        isSyncEnabled, toggleSync, isUpgradePromptOpen, setUpgradePromptOpen
       }}
     >
       {children}
