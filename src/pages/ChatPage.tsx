@@ -53,10 +53,12 @@ export const ChatPage: React.FC = () => {
   const CLOUDFLARE_APP_ID = 'ce6166e0362af275b7fce968ceb80ba5';
 
   useEffect(() => {
+    let isMounted = true;
     fetchRealUsers().then(users => {
-      setCommunityUsers(users);
+      if (isMounted) setCommunityUsers(users);
     }).catch(() => {});
-  }, [fetchRealUsers]);
+    return () => { isMounted = false; };
+  }, []);
 
   useEffect(() => {
     if (roomParam) {
@@ -69,9 +71,12 @@ export const ChatPage: React.FC = () => {
 
   useEffect(() => {
     if (selectedRoom) {
-      fetchMessages(`room_${selectedRoom}`);
+      const unsub = fetchMessages(`room_${selectedRoom}`);
+      return () => {
+        if (typeof unsub === 'function') unsub();
+      };
     }
-  }, [selectedRoom, fetchMessages]);
+  }, [selectedRoom]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -162,7 +167,7 @@ export const ChatPage: React.FC = () => {
         ws.close();
       }
     };
-  }, [user, selectedRoom, activeCall]);
+  }, [user?.user_id, selectedRoom]);
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();

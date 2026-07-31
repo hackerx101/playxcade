@@ -69,7 +69,7 @@ export const GlobalCallManager: React.FC = () => {
         ws.close();
       }
     };
-  }, [user, activeCall]);
+  }, [user?.user_id]);
 
   const handleAcceptCall = () => {
     if (!incomingCall) return;

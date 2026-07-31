@@ -82,6 +82,14 @@ export const ProfilePage: React.FC = () => {
   const [editAvatar, setEditAvatar] = useState(profileUser?.avatar_url || '');
   const [editError, setEditError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (profileUser) {
+      setEditUsername(profileUser.username || '');
+      setEditBio(profileUser.bio || '');
+      setEditAvatar(profileUser.avatar_url || '');
+    }
+  }, [profileUser?.username, profileUser?.bio, profileUser?.avatar_url]);
+
   const usernameValidation = useUsernameValidation(editUsername, user?.email);
 
   const userPosts = posts.filter(

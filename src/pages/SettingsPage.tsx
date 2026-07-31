@@ -50,6 +50,15 @@ export const SettingsPage: React.FC = () => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [deactivatePassword, setDeactivatePassword] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      setEditUsername(user.username || '');
+      setEditEmail(user.email || '');
+      setEditBio(user.bio || '');
+      setEditAvatar(user.avatar_url || '');
+    }
+  }, [user]);
   // 2FA states
   const [twoFactorEnabled, setTwoFactorEnabled] = useState<boolean>(user?.is_2fa_enabled || false);
   const [reports, setReports] = useState<any[]>([]);

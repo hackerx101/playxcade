@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -189,7 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const unreadNotificationCount = notifications.filter((n) => !n.read).length;
 
-  const fetchRealUsers = async (): Promise<UserProfile[]> => {
+  const fetchRealUsers = useCallback(async (): Promise<UserProfile[]> => {
     try {
       const q = query(collection(db, 'profiles'));
       const querySnap = await getDocs(q);
@@ -218,7 +218,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Fetch real users notice:', err);
       return [];
     }
-  };
+  }, [user?.user_id]);
 
   useEffect(() => {
     // 1. Firebase Auth listener (Primary)
@@ -253,12 +253,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       supabaseSub.unsubscribe();
     };
   }, []);
-
-  useEffect(() => {
-    if (user) {
-      fetchChats();
-    }
-  }, [user]);
 
   const saveDeviceMemory = (userId: string, email: string, username?: string) => {
     try {
@@ -423,7 +417,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   /**
    * Fetch posts with smart caching
    */
-  const fetchPosts = async (activeUserId?: string) => {
+  const fetchPosts = useCallback(async (activeUserId?: string) => {
     try {
       const postsRef = collection(db, 'posts');
       const q = query(postsRef, orderBy('created_at', 'desc'));
@@ -504,7 +498,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.warn('Fetch posts warning:', err);
     }
-  };
+  }, [user?.user_id]);
 
   /**
    * PRIMARY FIREBASE AUTH - Login
@@ -1068,7 +1062,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const verifyIdentity = () => {};
   const restoreAccountStatus = () => {};
 
-  const fetchChats = async () => {
+  const fetchChats = useCallback(async () => {
     if (!user) return;
     
     // Load local storage chats cache first for instant load
@@ -1131,12 +1125,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.warn('Fetch chats warning:', err);
     }
-  };
+  }, [user?.user_id]);
+
+  useEffect(() => {
+    if (user?.user_id) {
+      fetchChats();
+    }
+  }, [user?.user_id, fetchChats]);
 
   /**
    * Fetch messages with smart caching & localStorage fallback
    */
-  const fetchMessages = async (chatId: string) => {
+  const fetchMessages = useCallback(async (chatId: string) => {
     // 1. Check localStorage first
     try {
       const localMsgs = localStorage.getItem(`playxcade_msgs_${chatId}`);
@@ -1187,7 +1187,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.warn('Fetch messages warning:', err);
     }
-  };
+  }, [user?.user_id, user?.username]);
 
   const sendMessage = async (chatId: string, text: string, username?: string) => {
     if (!user) return;
