@@ -24,48 +24,67 @@ export const GlobalCallManager: React.FC = () => {
   useEffect(() => {
     if (!user) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    const ws = new WebSocket(wsUrl);
+    let ws: WebSocket | null = null;
+    let pingInterval: any = null;
+    let reconnectTimeout: any = null;
 
-    ws.onopen = () => {
-      ws.send(
-        JSON.stringify({
-          type: 'register',
-          userId: user.user_id,
-          username: user.username,
-          roomId: 'global',
-        })
-      );
-    };
+    const connect = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      ws = new WebSocket(wsUrl);
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'call-offer') {
-          // If offer comes from another user and we are not already in a call
-          if (data.senderId !== user.user_id && !activeCall) {
-            setIncomingCall({
-              type: data.callType || 'video',
-              caller: data.senderUsername || 'Community Member',
-              roomId: data.roomId || 'General',
-              offer: data.offer,
-              senderId: data.senderId,
-            });
+      ws.onopen = () => {
+        ws?.send(
+          JSON.stringify({
+            type: 'register',
+            userId: user.user_id,
+            username: user.username,
+            roomId: 'global',
+          })
+        );
+
+        pingInterval = setInterval(() => {
+          if (ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }));
           }
-        } else if (data.type === 'call-end') {
-          setIncomingCall(null);
-          if (activeCall) {
-            setActiveCall(null);
+        }, 15000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'call-offer') {
+            if (data.senderId !== user.user_id) {
+              setIncomingCall({
+                type: data.callType || 'video',
+                caller: data.senderUsername || 'Community Member',
+                roomId: data.roomId || 'General',
+                offer: data.offer,
+                senderId: data.senderId,
+              });
+            }
+          } else if (data.type === 'call-end') {
+            setIncomingCall(null);
           }
+        } catch (e) {
+          console.warn('GlobalCallManager WS message error:', e);
         }
-      } catch (e) {
-        console.warn('GlobalCallManager WS message error:', e);
-      }
+      };
+
+      ws.onclose = () => {
+        clearInterval(pingInterval);
+        reconnectTimeout = setTimeout(() => {
+          connect();
+        }, 3000);
+      };
     };
+
+    connect();
 
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
+      clearInterval(pingInterval);
+      clearTimeout(reconnectTimeout);
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close();
       }
     };

@@ -11,7 +11,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onStartStream, showLiveIcon = true, hideLinks = false }) => {
-  const { user, logout, language, theme, setTheme, notifications, unreadNotificationCount, markNotificationsAsRead } = useAuth();
+  const { user, logout, language, theme, setTheme, notifications, unreadNotificationCount, totalUnreadChatCount, markNotificationsAsRead } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -71,8 +71,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onStartStream, showLiveIcon = tr
               <Gamepad2 className="w-4 h-4 text-indigo-600" />
               <span>Cloud Gaming</span>
             </Link>
-            <Link to="/dm" className="hover:text-indigo-600 transition">
-              {getTranslation(language, 'chat')}
+            <Link to="/dm" className="hover:text-indigo-600 transition flex items-center space-x-1">
+              <span>{getTranslation(language, 'chat')}</span>
+              {totalUnreadChatCount > 0 && (
+                <span className="bg-rose-500 text-white font-extrabold text-[10px] px-1.5 py-0.2 rounded-full animate-pulse shadow-sm">
+                  {totalUnreadChatCount > 9 ? '9+' : totalUnreadChatCount}
+                </span>
+              )}
             </Link>
           </div>
         )}

@@ -207,24 +207,47 @@ async function startServer() {
             username: data.username,
             roomId: data.roomId || 'general',
           });
+          ws.send(JSON.stringify({ type: 'registered', userId: data.userId }));
           return;
         }
 
-        const sender = clients.get(ws);
-        if (!sender) return;
+        if (data.type === 'ping') {
+          ws.send(JSON.stringify({ type: 'pong' }));
+          return;
+        }
 
-        // Relay signaling messages (call-offer, call-answer, ice-candidate, etc.)
+        let sender = clients.get(ws);
+        const senderId = sender?.userId || data.senderId || data.userId || 'unknown';
+        const senderUsername = sender?.username || data.senderUsername || data.username || 'User';
+
+        // Relay signaling messages (call-offer, call-answer, ice-candidate, call-end, etc.)
+        const payload = {
+          ...data,
+          senderId,
+          senderUsername,
+        };
+
         if (data.targetUserId) {
+          let delivered = false;
           for (const [clientWs, clientInfo] of clients.entries()) {
             if (clientInfo.userId === data.targetUserId && clientWs.readyState === WebSocket.OPEN) {
-              clientWs.send(JSON.stringify({ ...data, senderId: sender.userId, senderUsername: sender.username }));
+              clientWs.send(JSON.stringify(payload));
+              delivered = true;
+            }
+          }
+          // Fallback if target user not found by ID (or registered under multiple connections): broadcast to all other open sockets
+          if (!delivered) {
+            for (const [clientWs] of clients.entries()) {
+              if (clientWs !== ws && clientWs.readyState === WebSocket.OPEN) {
+                clientWs.send(JSON.stringify(payload));
+              }
             }
           }
         } else {
           // Broadcast to all other connected clients
           for (const [clientWs] of clients.entries()) {
             if (clientWs !== ws && clientWs.readyState === WebSocket.OPEN) {
-              clientWs.send(JSON.stringify({ ...data, senderId: sender.userId, senderUsername: sender.username }));
+              clientWs.send(JSON.stringify(payload));
             }
           }
         }

@@ -21,7 +21,7 @@ const DEFAULT_CHANNELS = [
 const POPULAR_EMOJIS = ['😊', '😂', '🔥', '🎮', '👍', '🚀', '❤️', '💯', '🙏', '🙌', '⚡', '🎉', '🕹️', '🏆', '😎', '🍿', '👏', '💬', '💙', '💥'];
 
 export const ChatPage: React.FC = () => {
-  const { messages, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, user, chats, onlineUsers, joinRandomChat, fetchRealUsers } = useAuth();
+  const { messages, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, user, chats, onlineUsers, joinRandomChat, fetchRealUsers, unreadCountsBySender, markChatAsRead } = useAuth();
   const { username: roomParam } = useParams<{ username: string }>(); 
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -72,11 +72,14 @@ export const ChatPage: React.FC = () => {
   useEffect(() => {
     if (selectedRoom) {
       const unsub = fetchMessages(`room_${selectedRoom}`);
+      const activeChat = chats.find(c => c.id === selectedRoom);
+      const senderIdToClear = activeChat?.participant_id || selectedRoom.replace('dm_', '').replace('room_', '');
+      markChatAsRead(senderIdToClear);
       return () => {
         if (typeof unsub === 'function') unsub();
       };
     }
-  }, [selectedRoom]);
+  }, [selectedRoom, chats, markChatAsRead, fetchMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -247,6 +250,7 @@ export const ChatPage: React.FC = () => {
           onEndCall={() => { setActiveCall(null); setIncomingOffer(undefined); }} 
           appId={CLOUDFLARE_APP_ID}
           isInitiator={isInitiator}
+          targetUserId={chats.find(c => c.id === selectedRoom)?.participant_id || (selectedRoom.startsWith('dm_') ? selectedRoom.replace('dm_', '') : undefined)}
           incomingOffer={incomingOffer}
         />
       )}
@@ -416,64 +420,86 @@ export const ChatPage: React.FC = () => {
               <p className="text-[10px] font-bold text-slate-500 uppercase px-2 py-1 tracking-wider">Direct Messages</p>
               
               {/* Active Conversations from chats */}
-              {filteredChats.map(chat => (
-                <div key={chat.id} className="group flex items-center rounded-lg hover:bg-slate-900 pr-1 transition">
-                  <button 
-                    onClick={() => {
-                      setSelectedRoom(chat.id);
-                      setShowMobileSidebar(false);
-                    }} 
-                    className={`flex-1 flex items-center space-x-2.5 px-2 py-1.5 rounded-lg text-left ${
-                      selectedRoom === chat.id ? 'bg-indigo-600/10 text-indigo-300' : 'text-slate-300'
-                    }`}
-                  >
-                    <div className="relative shrink-0">
-                      <img src={chat.participant_avatar} className="w-7 h-7 rounded-full object-cover" alt={chat.participant_username} />
-                      <div className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-slate-950 ${onlineUsers[chat.participant_id] === 'online' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-200 truncate">{chat.participant_username}</p>
-                      <p className="text-[10px] text-slate-500 truncate">{chat.last_message || 'Start chatting'}</p>
-                    </div>
-                  </button>
-                  <button 
-                    onClick={() => navigate('/settings')}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-white transition"
-                    title="Settings"
-                  >
-                    <Settings className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
+              {filteredChats.map(chat => {
+                const unreadCount = (unreadCountsBySender && (unreadCountsBySender[chat.participant_id] || unreadCountsBySender[chat.id])) || 0;
+                return (
+                  <div key={chat.id} className="group flex items-center rounded-lg hover:bg-slate-900 pr-1 transition">
+                    <button 
+                      onClick={() => {
+                        setSelectedRoom(chat.id);
+                        markChatAsRead(chat.participant_id || chat.id);
+                        setShowMobileSidebar(false);
+                      }} 
+                      className={`flex-1 flex items-center space-x-2.5 px-2 py-1.5 rounded-lg text-left ${
+                        selectedRoom === chat.id ? 'bg-indigo-600/10 text-indigo-300' : 'text-slate-300'
+                      }`}
+                    >
+                      <div className="relative shrink-0">
+                        <img src={chat.participant_avatar} className="w-7 h-7 rounded-full object-cover" alt={chat.participant_username} />
+                        <div className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-slate-950 ${onlineUsers[chat.participant_id] === 'online' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-slate-200 truncate">{chat.participant_username}</p>
+                          {unreadCount > 0 && (
+                            <span className="bg-rose-500 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full animate-pulse shadow-sm ml-1 shrink-0">
+                              {unreadCount > 9 ? '9+' : unreadCount}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 truncate">{chat.last_message || 'Start chatting'}</p>
+                      </div>
+                    </button>
+                    <button 
+                      onClick={() => navigate('/settings')}
+                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-white transition"
+                      title="Settings"
+                    >
+                      <Settings className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })}
 
               {/* Community Users Fallback if chats is small */}
-              {filteredChats.length === 0 && filteredCommunity.map(prof => (
-                <div key={prof.user_id} className="group flex items-center rounded-lg hover:bg-slate-900 pr-1 transition">
-                  <button 
-                    onClick={() => {
-                      setSelectedRoom(`dm_${prof.user_id}`);
-                      setShowMobileSidebar(false);
-                    }} 
-                    className="flex-1 flex items-center space-x-2.5 px-2 py-1.5 rounded-lg text-left text-slate-300"
-                  >
-                    <div className="relative shrink-0">
-                      <img src={prof.avatar_url} className="w-7 h-7 rounded-full object-cover" alt={prof.username} />
-                      <div className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-slate-950 ${onlineUsers[prof.user_id] === 'online' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-200 truncate">@{prof.username}</p>
-                      <p className="text-[10px] text-slate-500 truncate">{prof.bio || 'Community member'}</p>
-                    </div>
-                  </button>
-                  <button 
-                    onClick={() => navigate('/settings')}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-white transition"
-                    title="Settings"
-                  >
-                    <Settings className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
+              {filteredChats.length === 0 && filteredCommunity.map(prof => {
+                const unreadCount = (unreadCountsBySender && unreadCountsBySender[prof.user_id]) || 0;
+                return (
+                  <div key={prof.user_id} className="group flex items-center rounded-lg hover:bg-slate-900 pr-1 transition">
+                    <button 
+                      onClick={() => {
+                        setSelectedRoom(`dm_${prof.user_id}`);
+                        markChatAsRead(prof.user_id);
+                        setShowMobileSidebar(false);
+                      }} 
+                      className="flex-1 flex items-center space-x-2.5 px-2 py-1.5 rounded-lg text-left text-slate-300"
+                    >
+                      <div className="relative shrink-0">
+                        <img src={prof.avatar_url} className="w-7 h-7 rounded-full object-cover" alt={prof.username} />
+                        <div className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-slate-950 ${onlineUsers[prof.user_id] === 'online' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-slate-200 truncate">@{prof.username}</p>
+                          {unreadCount > 0 && (
+                            <span className="bg-rose-500 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full animate-pulse shadow-sm ml-1 shrink-0">
+                              {unreadCount > 9 ? '9+' : unreadCount}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 truncate">{prof.bio || 'Community member'}</p>
+                      </div>
+                    </button>
+                    <button 
+                      onClick={() => navigate('/settings')}
+                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-white transition"
+                      title="Settings"
+                    >
+                      <Settings className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
 
           </div>

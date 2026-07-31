@@ -57,7 +57,10 @@ interface AuthContextType {
   messages: Message[];
   notifications: NotificationItem[];
   unreadNotificationCount: number;
+  totalUnreadChatCount: number;
+  unreadCountsBySender: Record<string, number>;
   markNotificationsAsRead: () => Promise<void>;
+  markChatAsRead: (senderIdOrChatId?: string) => Promise<void>;
   fetchRealUsers: () => Promise<UserProfile[]>;
   recentSearches: string[];
   addRecentSearch: (query: string) => void;
@@ -187,7 +190,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const markChatAsRead = async (senderIdOrChatId?: string) => {
+    if (!user || notifications.length === 0) return;
+    const targetNotifs = notifications.filter((n) => 
+      !n.read && 
+      (n.type === 'message' || !n.type) &&
+      (!senderIdOrChatId || n.sender_id === senderIdOrChatId || (n as any).chat_id === senderIdOrChatId)
+    );
+    if (targetNotifs.length === 0) return;
+
+    setNotifications((prev) =>
+      prev.map((n) => (targetNotifs.some((tn) => tn.id === n.id) ? { ...n, read: true } : n))
+    );
+
+    for (const n of targetNotifs) {
+      updateDoc(doc(db, 'notifications', n.id), { read: true }).catch(() => {});
+    }
+  };
+
   const unreadNotificationCount = notifications.filter((n) => !n.read).length;
+
+  const unreadMessageNotifications = useMemo(() => {
+    return notifications.filter((n) => !n.read && (n.type === 'message' || n.title?.toLowerCase().includes('message')));
+  }, [notifications]);
+
+  const totalUnreadChatCount = unreadMessageNotifications.length;
+
+  const unreadCountsBySender = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const n of unreadMessageNotifications) {
+      if (n.sender_id) {
+        map[n.sender_id] = (map[n.sender_id] || 0) + 1;
+      }
+      if ((n as any).chat_id) {
+        map[(n as any).chat_id] = (map[(n as any).chat_id] || 0) + 1;
+      }
+    }
+    return map;
+  }, [unreadMessageNotifications]);
 
   const fetchRealUsers = useCallback(async (): Promise<UserProfile[]> => {
     try {
@@ -1317,7 +1357,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user, authProviderType, recentAccounts, doNotShowRecent, setDoNotShowRecent, removeRecentAccount,
         language, setLanguage, theme, setTheme, posts, chats, messages, notifications, unreadNotificationCount,
-        markNotificationsAsRead, fetchRealUsers, recentSearches,
+        totalUnreadChatCount, unreadCountsBySender, markNotificationsAsRead, markChatAsRead, fetchRealUsers, recentSearches,
         addRecentSearch, clearRecentSearches, removeRecentSearch, followingIds,
         login, signup, loginWithSupabase, signupWithSupabase, logout, completeOnboarding, createPost, deletePost, archivePost,
         likePost, addComment, fetchComments, toggleFollow, updateProfile, submitAppeal, verifyIdentity, restoreAccountStatus,

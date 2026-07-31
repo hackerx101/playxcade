@@ -141,10 +141,14 @@ export const CallScreen: React.FC<CallScreenProps> = ({
     ringtoneRef.current.start();
     setIsRinging(true);
 
+    const pendingIceCandidates: RTCIceCandidateInit[] = [];
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
+
+    let pingInterval: any = null;
 
     // Standard public STUN servers for WebRTC NAT traversal
     const pc = new RTCPeerConnection({
@@ -152,9 +156,23 @@ export const CallScreen: React.FC<CallScreenProps> = ({
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
       ],
     });
     pcRef.current = pc;
+
+    const processPendingIceCandidates = async () => {
+      while (pendingIceCandidates.length > 0) {
+        const candidate = pendingIceCandidates.shift();
+        if (candidate) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (e) {
+            console.warn('Error adding queued ICE candidate:', e);
+          }
+        }
+      }
+    };
 
     // Receive remote tracks
     pc.ontrack = (event) => {
@@ -279,6 +297,7 @@ export const CallScreen: React.FC<CallScreenProps> = ({
         // Recipient accepting incoming call: set offer and create answer
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+          await processPendingIceCandidates();
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           ws.send(
@@ -296,6 +315,12 @@ export const CallScreen: React.FC<CallScreenProps> = ({
           console.error('Error setting remote offer / creating answer:', e);
         }
       }
+
+      pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 15000);
     };
 
     ws.onmessage = async (event) => {
@@ -305,13 +330,22 @@ export const CallScreen: React.FC<CallScreenProps> = ({
         if (data.type === 'call-answer' && data.answer) {
           // Received answer from remote peer
           await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+          await processPendingIceCandidates();
           ringtoneRef.current.stop();
           setIsRinging(false);
           setIsConnected(true);
           setPeerConnected(true);
         } else if (data.type === 'ice-candidate' && data.candidate) {
           // Received ICE candidate from remote peer
-          await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+          if (pc.remoteDescription) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+            } catch (e) {
+              console.warn('Failed to add ICE candidate directly:', e);
+            }
+          } else {
+            pendingIceCandidates.push(data.candidate);
+          }
         } else if (data.type === 'call-end') {
           ringtoneRef.current.stop();
           onEndCall();
@@ -322,6 +356,7 @@ export const CallScreen: React.FC<CallScreenProps> = ({
     };
 
     return () => {
+      clearInterval(pingInterval);
       ringtoneRef.current.stop();
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'call-end', roomId: channelName, targetUserId }));
