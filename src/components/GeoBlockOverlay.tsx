@@ -58,7 +58,7 @@ export const GeoBlockOverlay: React.FC = () => {
           <div>
             <span className="font-black text-xl tracking-tight block leading-none">GAREXCELL SOCIAL</span>
             <span className="text-[10px] font-mono font-bold tracking-widest text-slate-500 uppercase">
-              REGIONAL SERVICE COMPLIANCE OVERLAY
+              App is not available in your region
             </span>
           </div>
         </div>
