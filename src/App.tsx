@@ -208,6 +208,14 @@ export default function App() {
             }
           />
           <Route
+            path="/checkout/:token"
+            element={
+              <ProtectedRoute>
+                <CheckoutPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/checkout"
             element={
               <ProtectedRoute>

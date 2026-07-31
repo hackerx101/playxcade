@@ -137,10 +137,6 @@ export const CallScreen: React.FC<CallScreenProps> = ({
 
   // WebRTC & WebSockets Real-time Call Setup
   useEffect(() => {
-    // 1. Play ringing sound out loud on speaker while establishing connection
-    ringtoneRef.current.start();
-    setIsRinging(true);
-
     const pendingIceCandidates: RTCIceCandidateInit[] = [];
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -149,6 +145,14 @@ export const CallScreen: React.FC<CallScreenProps> = ({
     wsRef.current = ws;
 
     let pingInterval: any = null;
+
+    if (isInitiator) {
+      // 1. Play ringing sound out loud on speaker while establishing connection
+      ringtoneRef.current.start();
+      setIsRinging(true);
+    } else {
+      setIsRinging(false);
+    }
 
     // Standard public STUN servers for WebRTC NAT traversal
     const pc = new RTCPeerConnection({
@@ -220,7 +224,7 @@ export const CallScreen: React.FC<CallScreenProps> = ({
     const initCall = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: type === 'video' ? { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } } : false,
           audio: true,
         });
 
@@ -406,7 +410,7 @@ export const CallScreen: React.FC<CallScreenProps> = ({
                 <span className={`w-2 h-2 rounded-full ${isRinging ? 'bg-amber-400 animate-ping' : 'bg-emerald-500 animate-pulse'}`} />
               </h2>
               <p className="text-xs text-slate-300 font-mono flex items-center space-x-2">
-                <span>{isRinging ? 'Ringing speaker...' : formatTime(callDuration)}</span>
+                <span>{isRinging ? 'Ringing speaker...' : (!isConnected ? 'Connecting...' : `Connected • ${formatTime(callDuration)}`)}</span>
                 <span>•</span>
                 <span className="text-emerald-400 font-sans font-semibold">WebRTC Peer Connection</span>
               </p>

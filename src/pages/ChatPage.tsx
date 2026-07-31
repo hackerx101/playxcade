@@ -70,9 +70,16 @@ export const ChatPage: React.FC = () => {
     }
   }, [roomParam, navigate, channels]);
 
-  const targetChatId = selectedRoom.startsWith('room_') || selectedRoom.startsWith('dm_') || selectedRoom.startsWith('chat_')
-    ? selectedRoom
-    : `room_${selectedRoom}`;
+  const targetChatId = (() => {
+    if (selectedRoom.startsWith('dm_')) {
+      const otherUserId = selectedRoom.replace('dm_', '');
+      return `dm_${[user?.user_id || '', otherUserId].sort().join('_')}`;
+    }
+    if (selectedRoom.startsWith('room_') || selectedRoom.startsWith('chat_')) {
+      return selectedRoom;
+    }
+    return `room_${selectedRoom}`;
+  })();
 
   useEffect(() => {
     if (selectedRoom) {
@@ -732,7 +739,7 @@ export const ChatPage: React.FC = () => {
                                       {!isMine && (
                                         <>
                                           <button
-                                            onClick={(e) => { e.stopPropagation(); const reason = prompt("Report reason:"); if (reason) reportMessage(msg.id, reason); setShowOptionsId(null); }}
+                                            onClick={(e) => { e.stopPropagation(); navigate(`/report/${msg.id}`); setShowOptionsId(null); }}
                                             className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
                                           >
                                             <Shield className="w-3.5 h-3.5 text-orange-400" />

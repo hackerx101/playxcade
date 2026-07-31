@@ -151,108 +151,105 @@ export const ProfilePage: React.FC = () => {
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 sm:pb-8 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       <Navbar showLiveIcon={true} />
       
-      <main className="max-w-2xl mx-auto px-0 sm:px-6 pt-0 sm:pt-4 space-y-4">
+      <main className="max-w-2xl mx-auto px-0 sm:px-6 pt-0 space-y-4">
         {!isOwnProfile && (
-          <div className="flex items-center space-x-2 px-3 sm:px-0 pt-3 sm:pt-0">
-            <IOSBackButton onClick={() => navigate(-1)} label="Back" />
+          <div className="flex items-center space-x-4 px-4 py-3 bg-white/80 backdrop-blur-md sticky top-0 z-10 border-b border-slate-100">
+            <IOSBackButton onClick={() => navigate(-1)} label="" className="!p-1" />
+            <div>
+              <h1 className="text-xl font-bold text-slate-900 leading-tight">{profileUser.username}</h1>
+              <p className="text-xs text-slate-500">{userPosts.length} posts</p>
+            </div>
           </div>
         )}
 
         {/* Profile Header Card */}
-        <div className="bg-white sm:rounded-3xl shadow-xs border border-slate-200/80 overflow-hidden relative">
+        <div className="bg-white sm:rounded-3xl shadow-sm border-x border-b border-slate-200/80 overflow-hidden relative pb-4">
           
           {/* Banner */}
-          <div className="h-32 sm:h-48 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 relative">
-            <div className="absolute inset-0 bg-black/10" />
-            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1600&q=80')] bg-cover bg-center opacity-20 mix-blend-overlay"></div>
+          <div className="h-32 sm:h-48 w-full bg-slate-300 relative">
+            <div className="absolute inset-0 bg-gradient-to-tr from-slate-200 to-slate-400" />
+            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1600&q=80')] bg-cover bg-center opacity-30 mix-blend-overlay"></div>
           </div>
 
-          <div className="p-5 sm:p-6 space-y-5 relative">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between -mt-16 sm:-mt-20 mb-2 sm:mb-0 gap-4">
-              <div className="flex flex-col sm:flex-row sm:items-end space-y-3 sm:space-y-0 sm:space-x-4">
-                <div className="relative">
-                  <img
-                    src={profileUser.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${profileUser.username}`}
-                    alt={profileUser.username}
-                    className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover border-4 border-white shadow-md bg-slate-100"
-                  />
-                  {profileUser.IsIdentityVerify && (
-                    <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
-                      <CheckCircle2 className="w-6 h-6 fill-amber-400 text-white stroke-[2]" />
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-0.5 pb-1">
-                  <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center space-x-2">
-                    <span>{profileUser.username}</span>
-                  </h1>
-                  <p className="text-indigo-600 font-mono text-xs font-bold">@{profileUser.username}</p>
-                </div>
+          <div className="px-4 relative">
+            <div className="flex justify-between items-start -mt-12 sm:-mt-16 mb-3">
+              <div className="relative">
+                <img
+                  src={profileUser.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${profileUser.username}`}
+                  alt={profileUser.username}
+                  className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-white bg-slate-100"
+                />
+                {profileUser.IsIdentityVerify && (
+                  <div className="absolute bottom-0 right-0 bg-white rounded-full p-0.5">
+                    <CheckCircle2 className="w-6 h-6 fill-blue-500 text-white" />
+                  </div>
+                )}
               </div>
               
-              <div className="flex items-center space-x-2 shrink-0">
+              <div className="pt-14 sm:pt-20 flex items-center space-x-2">
                 {isOwnProfile ? (
                   <button
                     onClick={() => setEditModalOpen(true)}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-2 border border-slate-200"
+                    className="px-4 py-1.5 bg-white hover:bg-slate-50 text-slate-900 font-bold text-sm rounded-full transition border border-slate-300"
                   >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    <span>Edit Profile</span>
+                    Edit profile
                   </button>
                 ) : (
                   <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => navigate(`/chat/${profileUser.username}`)}
+                      className="p-1.5 bg-white hover:bg-slate-50 text-slate-900 rounded-full transition border border-slate-300"
+                    >
+                      <MessageSquare className="w-5 h-5" />
+                    </button>
                     <FollowButton
                       targetUserId={profileUser.user_id}
                       targetUsername={profileUser.username}
                       size="md"
                     />
-                    <button
-                      onClick={() => navigate(`/chat/${profileUser.username}`)}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>Message</span>
-                    </button>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Bio Card */}
-            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-              {profileUser.bio || 'No bio provided yet.'}
-            </p>
-
-            {/* Stats Bar */}
-            <div className="grid grid-cols-3 gap-3 text-center pt-1">
-              <div className="p-3 bg-slate-50/80 rounded-2xl border border-slate-100">
-                <p className="text-lg font-extrabold text-slate-900">{userPosts.length}</p>
-                <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">Posts</p>
+            <div className="space-y-3">
+              <div>
+                <h1 className="text-xl font-bold text-slate-900 leading-tight">
+                  {profileUser.username}
+                </h1>
+                <p className="text-slate-500 text-sm">@{profileUser.username}</p>
               </div>
 
-              {/* Click Followers -> Navigate directly to separate Followers page */}
-              <button
-                onClick={() => navigate(`/profile/${profileUser.username}/follows?subtab=followers`)}
-                className="p-3 bg-slate-50/80 hover:bg-indigo-50/80 rounded-2xl border border-slate-100 hover:border-indigo-100 transition text-center group cursor-pointer"
-              >
-                <p className="text-lg font-extrabold text-slate-900 group-hover:text-indigo-600">{displayedFollowersCount}</p>
-                <p className="text-[10px] text-slate-500 group-hover:text-indigo-600 font-extrabold uppercase tracking-wider">Followers</p>
-              </button>
+              {/* Bio */}
+              {profileUser.bio && (
+                <p className="text-sm text-slate-900 leading-normal">
+                  {profileUser.bio}
+                </p>
+              )}
 
-              {/* Click Following -> Navigate directly to separate Following page */}
-              <button
-                onClick={() => navigate(`/profile/${profileUser.username}/follows?subtab=following`)}
-                className="p-3 bg-slate-50/80 hover:bg-indigo-50/80 rounded-2xl border border-slate-100 hover:border-indigo-100 transition text-center group cursor-pointer"
-              >
-                <p className="text-lg font-extrabold text-slate-900 group-hover:text-indigo-600">{displayedFollowingCount}</p>
-                <p className="text-[10px] text-slate-500 group-hover:text-indigo-600 font-extrabold uppercase tracking-wider">Following</p>
-              </button>
+              {/* Stats Bar */}
+              <div className="flex items-center space-x-5 pt-1">
+                <button
+                  onClick={() => navigate(`/profile/${profileUser.username}/follows?subtab=following`)}
+                  className="flex items-center space-x-1 group"
+                >
+                  <span className="text-sm font-bold text-slate-900">{displayedFollowingCount}</span>
+                  <span className="text-sm text-slate-500 group-hover:underline">Following</span>
+                </button>
+                <button
+                  onClick={() => navigate(`/profile/${profileUser.username}/follows?subtab=followers`)}
+                  className="flex items-center space-x-1 group"
+                >
+                  <span className="text-sm font-bold text-slate-900">{displayedFollowersCount}</span>
+                  <span className="text-sm text-slate-500 group-hover:underline">Followers</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Tab Switcher (Posts, Replies, Media) */}
-        <div className="bg-white rounded-2xl p-1.5 shadow-xs border border-slate-200/80 grid grid-cols-3 gap-1">
+        <div className="bg-white border-b border-x sm:rounded-b-3xl border-slate-200/80 flex">
           {[
             { id: 'posts', label: 'Posts' },
             { id: 'replies', label: 'Replies' },
@@ -264,13 +261,16 @@ export const ProfilePage: React.FC = () => {
                 setActiveTab(tab.id);
                 setSearchParams({ tab: tab.id });
               }}
-              className={`py-2 text-xs font-extrabold rounded-xl transition ${
+              className={`flex-1 py-4 text-sm font-bold transition relative hover:bg-slate-50 ${
                 activeTab === tab.id
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'text-slate-500 hover:bg-slate-100'
+                  ? 'text-slate-900'
+                  : 'text-slate-500'
               }`}
             >
               {tab.label}
+              {activeTab === tab.id && (
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-blue-500 rounded-t-full" />
+              )}
             </button>
           ))}
         </div>

@@ -214,16 +214,16 @@ export const SettingsPage: React.FC = () => {
         {/* ACCOUNTS CENTER FULL MENU */}
         {screen === 'account_center' && (
           <div className="space-y-6">
-            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
+            <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
               <div className="relative z-10">
-                <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-4">
+                <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mb-4 border border-white/10">
                   <Shield className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl font-bold mb-1">Meta Accounts Center</h2>
-                <p className="text-sm text-indigo-100 opacity-90">Manage your connected experiences and account settings across all devices.</p>
+                <h2 className="text-xl font-bold mb-1 tracking-tight">Garexcell Account Center</h2>
+                <p className="text-sm text-slate-300">Manage your connected experiences and account settings across all devices.</p>
               </div>
-              <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white opacity-10 rounded-full blur-3xl"></div>
-              <div className="absolute -top-10 -left-10 w-32 h-32 bg-purple-400 opacity-20 rounded-full blur-2xl"></div>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 opacity-20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3"></div>
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500 opacity-20 rounded-full blur-[60px] translate-y-1/3 -translate-x-1/4"></div>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">

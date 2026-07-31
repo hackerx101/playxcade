@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Heart, MessageSquare, Share2, MoreHorizontal, CheckCircle2, Flag, EyeOff, Copy, ShieldCheck } from 'lucide-react';
 import { Post } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +12,7 @@ interface PostCardProps {
 
 export const PostCard: React.FC<PostCardProps> = ({ post, onCommentClick }) => {
   const { likePost, deletePost, user } = useAuth();
+  const navigate = useNavigate();
   const [showMenu, setShowMenu] = useState(false);
   const [copied, setCopied] = useState(false);
   const [hidden, setHidden] = useState(false);
@@ -91,7 +92,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onCommentClick }) => {
               </button>
               <button
                 onClick={() => {
-                  alert('Thank you. This post has been flagged for Garexcell moderators review.');
+                  navigate(`/report/${post.id}`);
                   setShowMenu(false);
                 }}
                 className="w-full flex items-center space-x-2 px-3 py-2 text-rose-600 hover:bg-rose-50 transition"
