@@ -6,6 +6,7 @@ import { BottomBar } from '../components/BottomBar';
 import { PostCard } from '../components/PostCard';
 import { IOSBackButton } from '../components/IOSBackButton';
 import { useAuth } from '../context/AuthContext';
+import { useMetaTags } from '../hooks/useMetaTags';
 import { Comment } from '../types';
 
 export const PostDetailPage: React.FC = () => {
@@ -13,12 +14,18 @@ export const PostDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { posts, user, fetchComments, addComment } = useAuth();
 
+  const targetPost = posts.find((p) => p.id === postId);
+
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
   const [loadingComments, setLoadingComments] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const targetPost = posts.find((p) => p.id === postId);
+  useMetaTags({
+    title: targetPost ? `Post by ${targetPost.author_username}` : 'Post Details',
+    description: targetPost?.content || 'Check out this post on Playxcade.',
+    image: targetPost?.media_url || targetPost?.author_avatar
+  });
 
   useEffect(() => {
     if (postId) {

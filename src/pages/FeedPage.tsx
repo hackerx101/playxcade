@@ -7,9 +7,16 @@ import { PostCard } from '../components/PostCard';
 import { CreatePostModal } from '../components/CreatePostModal';
 import { StartStreamModal } from '../components/StartStreamModal';
 import { MaintenanceBanner } from '../components/MaintenanceBanner';
+import { InstallBanner } from '../components/InstallBanner';
 import { useAuth } from '../context/AuthContext';
+import { useMetaTags } from '../hooks/useMetaTags';
 
 export const FeedPage: React.FC = () => {
+  useMetaTags({
+    title: 'Feed & Streams',
+    description: 'Explore live gaming feeds, community clips, and esports highlights on Playxcade.'
+  });
+
   const { posts, user } = useAuth();
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [streamModalOpen, setStreamModalOpen] = useState(false);
@@ -29,6 +36,7 @@ export const FeedPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 pb-20 sm:pb-8 transition-colors">
       <MaintenanceBanner />
+      <InstallBanner />
       <Navbar onStartStream={() => setStreamModalOpen(true)} showLiveIcon={true} />
 
       {/* Main Feed Container */}

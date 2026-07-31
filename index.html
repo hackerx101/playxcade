@@ -3,11 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Playxcade</title>
+    <title>Playxcade - Gaming & Streaming Ecosystem</title>
+    <meta name="description" content="The unified social gaming and streaming platform for gamers, creators, and communities." />
+    <meta name="theme-color" content="#4f46e5" />
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Playxcade - Gaming & Streaming Ecosystem" />
+    <meta property="og:description" content="The unified social gaming and streaming platform for gamers, creators, and communities." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ais-dev-ygbyzf2xi4sso4hgca7sg7-410055764874.us-east1.run.app" />
+    <meta property="og:image" content="https://api.dicebear.com/7.x/bottts/svg?seed=playxcade" />
+
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Playxcade - Gaming & Streaming Ecosystem" />
+    <meta name="twitter:description" content="The unified social gaming and streaming platform for gamers, creators, and communities." />
+    <meta name="twitter:image" content="https://api.dicebear.com/7.x/bottts/svg?seed=playxcade" />
+
+    <!-- PWA Manifest & Icons -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="https://api.dicebear.com/7.x/bottts/svg?seed=playxcade" />
+    <link rel="icon" type="image/svg+xml" href="https://api.dicebear.com/7.x/bottts/svg?seed=playxcade" />
   </head>
-  <body>
+  <body class="bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.log('SW registration failed: ', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>
 

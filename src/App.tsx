@@ -31,6 +31,7 @@ import { DeactivatedPage } from './pages/DeactivatedPage';
 import { SetupProfilePage } from './pages/SetupProfilePage';
 import { GeoBlockOverlay } from './components/GeoBlockOverlay';
 import { GlobalCallManager } from './components/GlobalCallManager';
+import { OfflineScreen } from './components/OfflineScreen';
 
 // Protected route wrapper that checks if user is logged in and not suspended, deactivated, or migrating
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -61,6 +62,7 @@ export default function App() {
     <AuthProvider>
       <GeoBlockOverlay />
       <GlobalCallManager />
+      <OfflineScreen />
       <BrowserRouter>
         <Routes>
           {/* Public Landing, Auth & Migration */}

@@ -8,6 +8,7 @@ import { PostCard } from '../components/PostCard';
 import { FollowButton } from '../components/FollowButton';
 import { IOSBackButton } from '../components/IOSBackButton';
 import { useUsernameValidation } from '../hooks/useUsernameValidation';
+import { useMetaTags } from '../hooks/useMetaTags';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -63,6 +64,12 @@ export const ProfilePage: React.FC = () => {
         posts_count: 0,
         created_at: new Date().toISOString(),
       };
+
+  useMetaTags({
+    title: profileUser ? `${profileUser.username}'s Profile` : 'User Profile',
+    description: profileUser?.bio || `Check out ${profileUser?.username || 'this user'}'s gaming profile on Playxcade.`,
+    image: profileUser?.avatar_url
+  });
 
   const isTargetFollowing = targetUserId ? followingIds.includes(targetUserId) : false;
 

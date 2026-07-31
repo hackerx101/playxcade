@@ -1,0 +1,17 @@
+{
+  "name": "Playxcade - Gaming & Streaming Ecosystem",
+  "short_name": "Playxcade",
+  "description": "The unified social gaming and streaming platform for gamers, creators, and communities.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
