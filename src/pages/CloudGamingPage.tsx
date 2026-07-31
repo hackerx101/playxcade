@@ -288,7 +288,7 @@ export const CloudGamingPage: React.FC = () => {
                         }}
                         className="w-11 h-11 bg-white text-indigo-950 rounded-full flex items-center justify-center shadow-lg transform group-hover:scale-110 transition"
                       >
-                        <Play className="w-5 h-5 fill-indigo-950 ml-0.5" />
+                        <Play   className="w-5 h-5 fill-indigo-950 ml-0.5" />
                       </button>
                     </div>
 
