@@ -597,101 +597,117 @@ export const ChatPage: React.FC = () => {
                       
                       const isCallMsg = msg.text.startsWith('[CALL_STARTED:');
                       if (isCallMsg) {
-                          const callType = msg.text.includes('video') ? 'video' : 'voice';
-                          return (
+                        const callType = msg.text.includes('video') ? 'video' : 'voice';
+                        return (
                           <div key={msg.id} className="flex justify-center my-4">
-                              <div className="bg-slate-800/80 border border-slate-700/50 rounded-full px-4 py-1.5 flex items-center space-x-2 text-xs text-slate-300">
+                            <div className="bg-slate-800/80 border border-slate-700/50 rounded-full px-4 py-1.5 flex items-center space-x-2 text-xs text-slate-300">
                               {callType === 'video' ? <Video className="w-3.5 h-3.5 text-indigo-400" /> : <Phone className="w-3.5 h-3.5 text-emerald-400" />}
                               <span><strong className="text-slate-100">{msg.sender_username || 'Someone'}</strong> started a {callType} call.</span>
-                              </div>
+                            </div>
                           </div>
-                          );
+                        );
                       }
 
                       return (
-                          <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'} group`}>
-                          <div className={`max-w-[85%] sm:max-w-2xl ${isMine ? 'items-end' : 'items-start'} flex flex-col`}>
-                              
-                              {showHeader && (
+                        <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'} group items-end gap-2 my-1`}>
+                          {!isMine && (
+                            <img 
+                              src={msg.sender_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${msg.sender_id}`} 
+                              className="w-8 h-8 rounded-full object-cover shrink-0 mb-1 border border-slate-800"
+                              alt={msg.sender_username || 'User'}
+                            />
+                          )}
+
+                          <div className={`max-w-[85%] sm:max-w-xl ${isMine ? 'items-end' : 'items-start'} flex flex-col`}>
+                            
+                            {showHeader && (
                               <div className={`flex items-baseline space-x-2 mb-1 relative ${isMine ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                                  <span 
+                                <span 
                                   onClick={() => !isMine && setShowOptionsId(showOptionsId === msg.id ? null : msg.id)}
                                   className={`text-xs font-bold ${isMine ? 'text-indigo-400' : 'text-slate-300 cursor-pointer hover:underline'}`}
                                   title={!isMine ? "Click to block user" : undefined}
-                                  >
-                                  {isMine ? user?.username : (msg.sender_username || msg.sender_id || 'Unknown')}
-                                  </span>
-                                  <span className="text-[10px] text-slate-500">
+                                >
+                                  {isMine ? (user?.username ? `@${user.username}` : 'You') : `@${msg.sender_username || msg.sender_id || 'User'}`}
+                                </span>
+                                <span className="text-[10px] text-slate-500">
                                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
+                                </span>
 
-                                  {/* Moderation Menu */}
-                                  {showOptionsId === msg.id && !isMine && (
+                                {/* Moderation Menu */}
+                                {showOptionsId === msg.id && !isMine && (
                                   <div className="absolute top-6 left-0 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 py-1">
-                                      <button
+                                    <button
                                       onClick={() => {
-                                          const reason = prompt("Why are you reporting this message?");
-                                          if (reason) reportMessage(msg.id, reason);
-                                          setShowOptionsId(null);
+                                        const reason = prompt("Why are you reporting this message?");
+                                        if (reason) reportMessage(msg.id, reason);
+                                        setShowOptionsId(null);
                                       }}
                                       className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
-                                      >
+                                    >
                                       <Shield className="w-3.5 h-3.5 text-indigo-400" />
                                       <span>Report Message</span>
-                                      </button>
-                                      <button
+                                    </button>
+                                    <button
                                       onClick={() => {
-                                          setUserToBlock({id: msg.sender_id || '', username: msg.sender_username || 'Unknown'});
-                                          setBlockModalOpen(true);
-                                          setShowOptionsId(null);
+                                        setUserToBlock({id: msg.sender_id || '', username: msg.sender_username || 'Unknown'});
+                                        setBlockModalOpen(true);
+                                        setShowOptionsId(null);
                                       }}
                                       className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
-                                      >
+                                    >
                                       <Ban className="w-3.5 h-3.5 text-rose-400" />
                                       <span>Block User</span>
-                                      </button>
-                                      <button
+                                    </button>
+                                    <button
                                       onClick={() => setShowOptionsId(null)}
                                       className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-400"
-                                      >
+                                    >
                                       Cancel
-                                      </button>
+                                    </button>
                                   </div>
-                                  )}
+                                )}
                               </div>
-                              )}
-                              
-                              <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed relative group/msg ${
+                            )}
+                            
+                            <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed relative group/msg ${
                               isMine 
-                                  ? 'bg-indigo-600 text-white rounded-tr-sm' 
-                                  : 'bg-slate-800 text-slate-100 rounded-tl-sm'
-                              }`}>
+                                ? 'bg-indigo-600 text-white rounded-tr-sm shadow-md' 
+                                : 'bg-slate-800 border border-slate-700/60 text-slate-100 rounded-tl-sm shadow-sm'
+                            }`}>
                               <p className="break-words whitespace-pre-wrap">{msg.text}</p>
                               {msg.edited && <span className="text-[10px] text-white/70 italic block mt-1">(edited)</span>}
                               {isMine && (
-                                  <div className="absolute top-1/2 -translate-y-1/2 -left-12 flex flex-col gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                                <div className="absolute top-1/2 -translate-y-1/2 -left-12 flex flex-col gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
                                   <button
-                                      onClick={() => {
+                                    onClick={() => {
                                       const newText = prompt("Edit your message:", msg.text);
                                       if (newText !== null && newText !== msg.text) editMessage(msg.id, newText, `room_${selectedRoom}`);
-                                      }}
-                                      className="p-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full shadow-sm"
-                                      title="Edit Message"
+                                    }}
+                                    className="p-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full shadow-sm"
+                                    title="Edit Message"
                                   >
-                                      <MessageSquare className="w-3.5 h-3.5" />
+                                    <MessageSquare className="w-3.5 h-3.5" />
                                   </button>
                                   <button
-                                      onClick={() => deleteMessage(msg.id, `room_${selectedRoom}`)}
-                                      className="p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-sm"
-                                      title="Delete Message"
+                                    onClick={() => deleteMessage(msg.id, `room_${selectedRoom}`)}
+                                    className="p-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full shadow-sm"
+                                    title="Delete Message"
                                   >
-                                      <Trash2 className="w-3.5 h-3.5" />
+                                    <Trash2 className="w-3.5 h-3.5" />
                                   </button>
-                                  </div>
+                                </div>
                               )}
-                              </div>
+                            </div>
                           </div>
-                          </div>
+
+                          {isMine && (
+                            <img 
+                              src={user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.user_id}`} 
+                              className="w-8 h-8 rounded-full object-cover shrink-0 mb-1 border border-indigo-500/30"
+                              alt={user?.username || 'You'}
+                            />
+                          )}
+                        </div>
                       );
                     })}
                     

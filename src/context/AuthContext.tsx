@@ -1149,25 +1149,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cachedMsgs = appCache.getMessages(chatId);
     if (cachedMsgs && cachedMsgs.length > 0) {
       setMessages(cachedMsgs);
-      return;
     }
 
     try {
       const msgsRef = collection(db, 'messages');
       const q = query(msgsRef, where('chat_id', '==', chatId), orderBy('created_at', 'asc'));
-      const querySnap = await getDocs(q);
 
-      const msgs: Message[] = querySnap.docs.map(docSnap => ({
-        id: docSnap.id,
-        chat_id: docSnap.data().chat_id,
-        sender_id: docSnap.data().sender_id,
-        text: docSnap.data().text,
-        created_at: docSnap.data().created_at || new Date().toISOString()
-      }));
+      const unsubscribe = onSnapshot(
+        q,
+        (querySnap) => {
+          const msgs: Message[] = querySnap.docs.map(docSnap => {
+            const d = docSnap.data();
+            return {
+              id: docSnap.id,
+              chat_id: d.chat_id,
+              sender_id: d.sender_id,
+              sender_username: d.sender_username || (d.sender_id === user?.user_id ? user?.username : 'User'),
+              sender_avatar: d.sender_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${d.sender_id}`,
+              text: d.text || '',
+              created_at: d.created_at || new Date().toISOString(),
+              edited: d.edited || false
+            };
+          });
 
-      appCache.setMessages(chatId, msgs);
-      setMessages(msgs);
-      localStorage.setItem(`playxcade_msgs_${chatId}`, JSON.stringify(msgs));
+          appCache.setMessages(chatId, msgs);
+          setMessages(msgs);
+          try {
+            localStorage.setItem(`playxcade_msgs_${chatId}`, JSON.stringify(msgs));
+          } catch (e) {}
+        },
+        (err) => {
+          console.warn('Real-time Firestore messages snapshot warning:', err);
+        }
+      );
+
+      return unsubscribe;
     } catch (err) {
       console.warn('Fetch messages warning:', err);
     }
@@ -1219,27 +1235,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (actualChatId && actualChatId !== 'new') {
       const msgId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       const nowTime = new Date().toISOString();
-      const newMsg: Message = {
+      const newMsgDoc = {
         id: msgId,
         chat_id: actualChatId,
         sender_id: user.user_id,
-        text,
-        created_at: nowTime
+        sender_username: user.username,
+        sender_avatar: user.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.user_id}`,
+        text: text.trim(),
+        created_at: nowTime,
+        edited: false
       };
 
-      // Firestore
-      await setDoc(doc(db, 'messages', msgId), newMsg);
-      // Supabase
-      supabase.from('messages').insert({ ...newMsg }).then(() => {});
-
-      // Invalidate message cache, update local state, and save to localStorage
-      const currentMsgs = appCache.getMessages(actualChatId) || messages;
-      const updatedMsgs = [...currentMsgs.filter(m => m.id !== msgId), newMsg];
-      appCache.setMessages(actualChatId, updatedMsgs);
-      setMessages(updatedMsgs);
-      try {
-        localStorage.setItem(`playxcade_msgs_${actualChatId}`, JSON.stringify(updatedMsgs));
-      } catch (e) {}
+      // Store in Firebase Firestore 'messages' collection
+      await setDoc(doc(db, 'messages', msgId), newMsgDoc);
 
       // Identify target recipient for notification
       if (!targetUserId) {
@@ -1269,25 +1277,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteMessage = async (messageId: string, chatId: string) => {
     if (!user) return;
     await deleteDoc(doc(db, 'messages', messageId));
-    supabase.from('messages').delete().eq('id', messageId).then(() => {});
-
-    const currentMsgs = appCache.getMessages(chatId) || messages;
-    const updatedMsgs = currentMsgs.filter(m => m.id !== messageId);
-    appCache.setMessages(chatId, updatedMsgs);
-    setMessages(updatedMsgs);
-    localStorage.setItem(`playxcade_msgs_${chatId}`, JSON.stringify(updatedMsgs));
   };
 
   const editMessage = async (messageId: string, newText: string, chatId: string) => {
     if (!user) return;
-    await updateDoc(doc(db, 'messages', messageId), { text: newText, edited: true });
-    supabase.from('messages').update({ text: newText, edited: true }).eq('id', messageId).then(() => {});
-    
-    const currentMsgs = appCache.getMessages(chatId) || messages;
-    const updatedMsgs = currentMsgs.map(m => m.id === messageId ? { ...m, text: newText, edited: true } : m);
-    appCache.setMessages(chatId, updatedMsgs);
-    setMessages(updatedMsgs);
-    localStorage.setItem(`playxcade_msgs_${chatId}`, JSON.stringify(updatedMsgs));
+    await updateDoc(doc(db, 'messages', messageId), { text: newText.trim(), edited: true });
   };
 
   const reportMessage = async (messageId: string, reason: string) => {

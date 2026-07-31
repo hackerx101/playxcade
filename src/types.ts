@@ -78,8 +78,11 @@ export interface Message {
   id: string;
   chat_id: string;
   sender_id: string;
+  sender_username?: string;
+  sender_avatar?: string;
   text: string;
   created_at: string;
+  edited?: boolean;
 }
 
 export interface Chat {

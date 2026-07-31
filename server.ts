@@ -220,9 +220,10 @@ async function startServer() {
               clientWs.send(JSON.stringify({ ...data, senderId: sender.userId, senderUsername: sender.username }));
             }
           }
-        } else if (data.roomId) {
-          for (const [clientWs, clientInfo] of clients.entries()) {
-            if (clientInfo.roomId === data.roomId && clientWs !== ws && clientWs.readyState === WebSocket.OPEN) {
+        } else {
+          // Broadcast to all other connected clients
+          for (const [clientWs] of clients.entries()) {
+            if (clientWs !== ws && clientWs.readyState === WebSocket.OPEN) {
               clientWs.send(JSON.stringify({ ...data, senderId: sender.userId, senderUsername: sender.username }));
             }
           }
