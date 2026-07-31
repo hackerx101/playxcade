@@ -69,17 +69,26 @@ export const ChatPage: React.FC = () => {
     }
   }, [roomParam, navigate, channels]);
 
+  const targetChatId = selectedRoom.startsWith('room_') || selectedRoom.startsWith('dm_') || selectedRoom.startsWith('chat_')
+    ? selectedRoom
+    : `room_${selectedRoom}`;
+
   useEffect(() => {
     if (selectedRoom) {
-      const unsub = fetchMessages(`room_${selectedRoom}`);
-      const activeChat = chats.find(c => c.id === selectedRoom);
-      const senderIdToClear = activeChat?.participant_id || selectedRoom.replace('dm_', '').replace('room_', '');
-      markChatAsRead(senderIdToClear);
+      const unsub = fetchMessages(targetChatId);
       return () => {
         if (typeof unsub === 'function') unsub();
       };
     }
-  }, [selectedRoom, chats, markChatAsRead, fetchMessages]);
+  }, [selectedRoom, targetChatId, fetchMessages]);
+
+  useEffect(() => {
+    if (selectedRoom) {
+      const activeChat = chats.find(c => c.id === selectedRoom);
+      const senderIdToClear = activeChat?.participant_id || selectedRoom.replace('dm_', '').replace('room_', '');
+      markChatAsRead(senderIdToClear);
+    }
+  }, [selectedRoom, chats, markChatAsRead]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -92,7 +101,7 @@ export const ChatPage: React.FC = () => {
     type: selectedRoom.includes('voice') || selectedRoom === 'lounge' || selectedRoom === 'squad' ? 'voice' : 'text'
   };
 
-  const roomMessages = messages.filter(m => m.chat_id === `room_${selectedRoom}` && !mutedUsers.includes(m.sender_id || ''));
+  const roomMessages = messages.filter(m => m.chat_id === targetChatId && !mutedUsers.includes(m.sender_id || ''));
   
   const filteredMessages = roomMessages.filter(m => {
     if (!searchQuery) return true;
@@ -188,7 +197,7 @@ export const ChatPage: React.FC = () => {
       return;
     }
 
-    sendMessage(`room_${selectedRoom}`, inputText, user?.username);
+    sendMessage(targetChatId, inputText, user?.username);
     setInputText('');
     setShowEmojiPicker(false);
   };
@@ -201,7 +210,7 @@ export const ChatPage: React.FC = () => {
     setIsInitiator(true);
     setIncomingOffer(undefined);
     setActiveCall(type);
-    sendMessage(`room_${selectedRoom}`, `[CALL_STARTED:${type}]`, user?.username);
+    sendMessage(targetChatId, `[CALL_STARTED:${type}]`, user?.username);
   };
 
   const acceptCall = () => {

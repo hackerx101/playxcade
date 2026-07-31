@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Heart, MessageSquare, Share2, MoreHorizontal, CheckCircle2, Flag, EyeOff, Copy, ShieldCheck } from 'lucide-react';
 import { Post } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { VideoPlayer } from './VideoPlayer';
 
 interface PostCardProps {
   post: Post;
@@ -136,12 +137,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onCommentClick }) => {
       {/* Square Media Attachment */}
       {post.media_url && (
         <div className="relative aspect-square w-full bg-slate-950 flex items-center justify-center overflow-hidden">
-          {post.type === 'video' ? (
-            <video
+          {post.type === 'video' || post.media_url.includes('video') || post.media_url.endsWith('.mp4') || post.media_url.endsWith('.webm') || post.media_url.startsWith('data:video') ? (
+            <VideoPlayer
               src={post.media_url}
-              controls
-              loop
-              className="w-full h-full object-cover"
+              className="w-full h-full rounded-none"
+              loop={true}
             />
           ) : (
             <img

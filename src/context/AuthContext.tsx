@@ -137,11 +137,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => { channel.unsubscribe(); };
   }, [user]);
 
-  const uploadFile = async (file: File) => {
+  const uploadFile = async (file: File): Promise<string> => {
+    try {
       const { data, error } = await supabase.storage.from('media').upload(`${Date.now()}_${file.name}`, file);
-      if (error) throw error;
-      return supabase.storage.from('media').getPublicUrl(data.path).data.publicUrl;
-  }
+      if (!error && data?.path) {
+        return supabase.storage.from('media').getPublicUrl(data.path).data.publicUrl;
+      }
+    } catch (e) {
+      console.warn('Supabase media upload fallback:', e);
+    }
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = () => {
+        resolve(URL.createObjectURL(file));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
 
   // Real-time Firestore notifications listener using onSnapshot
   useEffect(() => {
@@ -746,6 +761,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       caption: captionText,
       type: postData.type || 'text',
       media_url: postData.media_url || undefined,
+      category: postData.category || 'Warlands',
+      hashtags: postData.hashtags || [],
+      tags: postData.tags || [],
       likes_count: 0,
       comments_count: 0,
       is_liked: false,
@@ -771,6 +789,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).then(() => {});
 
     setPosts(prev => [newPostObj, ...prev]);
+    return newPostObj;
   };
 
   const toggleFollow = async (targetUserId: string) => {
@@ -1176,7 +1195,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   /**
    * Fetch messages with smart caching & localStorage fallback
    */
-  const fetchMessages = useCallback(async (chatId: string) => {
+  const fetchMessages = useCallback((chatId: string) => {
     // 1. Check localStorage first
     try {
       const localMsgs = localStorage.getItem(`playxcade_msgs_${chatId}`);
@@ -1193,24 +1212,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const msgsRef = collection(db, 'messages');
-      const q = query(msgsRef, where('chat_id', '==', chatId), orderBy('created_at', 'asc'));
+      const q = query(msgsRef, where('chat_id', '==', chatId));
 
       const unsubscribe = onSnapshot(
         q,
         (querySnap) => {
-          const msgs: Message[] = querySnap.docs.map(docSnap => {
-            const d = docSnap.data();
-            return {
-              id: docSnap.id,
-              chat_id: d.chat_id,
-              sender_id: d.sender_id,
-              sender_username: d.sender_username || (d.sender_id === user?.user_id ? user?.username : 'User'),
-              sender_avatar: d.sender_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${d.sender_id}`,
-              text: d.text || '',
-              created_at: d.created_at || new Date().toISOString(),
-              edited: d.edited || false
-            };
-          });
+          const msgs: Message[] = querySnap.docs
+            .map(docSnap => {
+              const d = docSnap.data();
+              return {
+                id: docSnap.id,
+                chat_id: d.chat_id,
+                sender_id: d.sender_id,
+                sender_username: d.sender_username || (d.sender_id === user?.user_id ? user?.username : 'User'),
+                sender_avatar: d.sender_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${d.sender_id}`,
+                text: d.text || '',
+                created_at: d.created_at || new Date().toISOString(),
+                edited: d.edited || false
+              };
+            })
+            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
           appCache.setMessages(chatId, msgs);
           setMessages(msgs);
@@ -1275,7 +1296,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (actualChatId && actualChatId !== 'new') {
       const msgId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       const nowTime = new Date().toISOString();
-      const newMsgDoc = {
+      const newMsgDoc: Message = {
         id: msgId,
         chat_id: actualChatId,
         sender_id: user.user_id,
@@ -1285,6 +1306,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         created_at: nowTime,
         edited: false
       };
+
+      // Optimistically append to state immediately for 0ms latency display
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === msgId)) return prev;
+        const updated = [...prev, newMsgDoc];
+        appCache.setMessages(actualChatId, updated);
+        try {
+          localStorage.setItem(`playxcade_msgs_${actualChatId}`, JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
 
       // Store in Firebase Firestore 'messages' collection
       await setDoc(doc(db, 'messages', msgId), newMsgDoc);

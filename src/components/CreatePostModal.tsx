@@ -22,37 +22,49 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const [hashtagInput, setHashtagInput] = useState('');
   const [category, setCategory] = useState('Warlands');
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!caption.trim() && !file && !videoUrl) return;
+    if ((!caption.trim() && !file && !videoUrl) || isSubmitting) return;
 
-    let media_url = videoUrl;
-    if (file) {
-      media_url = await uploadFile(file);
+    setIsSubmitting(true);
+    try {
+      let media_url = videoUrl;
+      if (file) {
+        media_url = await uploadFile(file);
+      }
+
+      // Extract hashtags from caption or custom input
+      const extractedHashtags = (caption.match(/#[a-zA-Z0-9_]+/g) || []).concat(
+        hashtagInput.split(',').map((h) => (h.trim().startsWith('#') ? h.trim() : `#${h.trim()}`)).filter((h) => h.length > 1)
+      );
+
+      const created = await createPost({
+        caption,
+        type: activeTab,
+        media_url: media_url || undefined,
+        hashtags: Array.from(new Set(extractedHashtags)),
+        category,
+        tags: [category],
+      });
+
+      onClose();
+      setCaption('');
+      setVideoUrl('');
+      setFile(null);
+      setHashtagInput('');
+      setIsSubmitting(false);
+
+      if (created && created.id) {
+        navigate(`/post/${created.id}`);
+      }
+    } catch (err) {
+      console.error('Failed to create post:', err);
+      setIsSubmitting(false);
     }
-
-    // Extract hashtags from caption or custom input
-    const extractedHashtags = (caption.match(/#[a-zA-Z0-9_]+/g) || []).concat(
-      hashtagInput.split(',').map((h) => (h.trim().startsWith('#') ? h.trim() : `#${h.trim()}`)).filter((h) => h.length > 1)
-    );
-
-    const created = createPost({
-      caption,
-      type: activeTab,
-      media_url: media_url || undefined,
-      hashtags: Array.from(new Set(extractedHashtags)),
-      category,
-      tags: [category],
-    });
-
-    onClose();
-    setCaption('');
-    setVideoUrl('');
-    setFile(null);
-    setHashtagInput('');
-    navigate(`/post/${created.id}`);
   };
 
   return (

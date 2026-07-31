@@ -4,6 +4,7 @@ import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
+import { VideoPlayer } from '../components/VideoPlayer';
 
 export const ForYouPage: React.FC = () => {
   const { posts, likePost, user } = useAuth();
@@ -12,8 +13,26 @@ export const ForYouPage: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
+  const isVideoPost = (p: any) => {
+    if (p.type === 'video') return true;
+    if (p.media_url) {
+      const url = p.media_url.toLowerCase();
+      if (url.includes('video') || url.endsWith('.mp4') || url.endsWith('.webm') || url.endsWith('.mov') || url.startsWith('data:video')) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const mediaPosts = posts
-    .filter((p) => p.type === activeTab || (activeTab === 'video' && p.media_url))
+    .filter((p) => {
+      if (!p.media_url && p.type !== 'video') return false;
+      if (activeTab === 'video') {
+        return isVideoPost(p);
+      } else {
+        return p.type === 'image' || (!isVideoPost(p) && !!p.media_url);
+      }
+    })
     .sort((a, b) => {
         if (user?.interests && user.interests.length > 0) {
             const aMatches = user.interests.includes(a.category || '');
@@ -78,14 +97,13 @@ export const ForYouPage: React.FC = () => {
               className="relative aspect-[9/14] w-full bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 flex flex-col justify-between"
             >
             {/* Background Media */}
-            {post.type === 'video' ? (
-              <video
+            {isVideoPost(post) ? (
+              <VideoPlayer
                 src={post.media_url || 'https://assets.mixkit.co/videos/preview/mixkit-gameplay-of-a-futuristic-shooter-game-41527-large.mp4'}
-                autoPlay
-                muted
-                loop
-                playsInline
-                className="absolute inset-0 w-full h-full object-cover"
+                autoPlay={true}
+                muted={true}
+                loop={true}
+                className="absolute inset-0 w-full h-full object-cover rounded-none"
               />
             ) : (
               <img
