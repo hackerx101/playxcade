@@ -3,15 +3,26 @@ import { Heart, MessageSquare, Share2, MoreVertical, RefreshCw, Flame, Tag, Flag
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export const ForYouPage: React.FC = () => {
-  const { posts, likePost } = useAuth();
+  const { posts, likePost, user } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'video' | 'image'>('video');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
-  const mediaPosts = posts.filter((p) => p.type === activeTab || (activeTab === 'video' && p.media_url));
+  const mediaPosts = posts
+    .filter((p) => p.type === activeTab || (activeTab === 'video' && p.media_url))
+    .sort((a, b) => {
+        if (user?.interests && user.interests.length > 0) {
+            const aMatches = user.interests.includes(a.category || '');
+            const bMatches = user.interests.includes(b.category || '');
+            if (aMatches && !bMatches) return -1;
+            if (!aMatches && bMatches) return 1;
+        }
+        return 0;
+    });
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -154,10 +165,15 @@ export const ForYouPage: React.FC = () => {
 
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
+                      if (navigator.share) {
+                          navigator.share({ title: post.caption, url: `${window.location.origin}/post/${post.id}` });
+                      } else {
+                          navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
+                          alert('Link copied to clipboard!');
+                      }
                   }}
                   className="flex flex-col items-center space-y-1"
-                  title="Copy Link"
+                  title="Share"
                 >
                   <div className="p-3 rounded-full bg-black/50 backdrop-blur hover:bg-indigo-600 transition text-white">
                     <Share2 className="w-6 h-6" />
@@ -198,6 +214,7 @@ export const ForYouPage: React.FC = () => {
                       <button
                         onClick={() => {
                           setActiveMenuId(null);
+                          navigate(`/report/${post.id}`);
                         }}
                         className="w-full flex items-center space-x-2 px-3 py-2 text-rose-400 hover:bg-rose-950/40 transition"
                       >

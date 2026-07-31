@@ -10,7 +10,10 @@ import { ForYouPage } from './pages/ForYouPage';
 import { ExplorePage } from './pages/ExplorePage';
 import { ChatPage } from './pages/ChatPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { FollowsPage } from './pages/FollowsPage';
+import { ReportPage } from './pages/ReportPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { CheckoutPage } from './pages/CheckoutPage';
 import { PostDetailPage } from './pages/PostDetailPage';
 import { SSOPage } from './pages/SSOPage';
 import { SuspendedPage } from './pages/SuspendedPage';
@@ -22,7 +25,7 @@ import { PasswordResetPage } from './pages/PasswordResetPage';
 import { CloudGamingPage } from './pages/CloudGamingPage';
 import { HackedAccountPage } from './pages/HackedAccountPage';
 import { MigratingPage } from './pages/MigratingPage';
-import { CheckoutPage } from './pages/CheckoutPage';
+
 import { DeactivatedPage } from './pages/DeactivatedPage';
 import { SetupProfilePage } from './pages/SetupProfilePage';
 import { GeoBlockOverlay } from './components/GeoBlockOverlay';
@@ -61,13 +64,13 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/cloud" element={<CloudGamingPage />} />
           <Route path="/migrating" element={<MigratingPage />} />
-          <Route path="/auth font" element={<AuthPage />} />
+          
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/sso/third" element={<AuthPage defaultEngine="firebase" />} />
           <Route path="/ssso/third" element={<AuthPage defaultEngine="firebase" />} />
           <Route path="/auth/failover" element={<AuthPage />} />
           <Route path="/auth/supabase" element={<AuthPage />} />
-          <Route path="/setup-profile font" element={<SetupProfilePage />} />
+          
           <Route path="/setup-profile" element={<SetupProfilePage />} />
           <Route path="/onboarding" element={<SetupProfilePage />} />
           <Route path="/auth/verify" element={<AuthVerifyPage />} />
@@ -77,7 +80,7 @@ export default function App() {
           <Route path="/account/verify/hacked" element={<HackedAccountPage />} />
           <Route path="/account/id/verify" element={<IdentityVerifyPage />} />
           <Route path="/sso" element={<SSOPage />} />
-          <Route path="/tos font" element={<TOSPage />} />
+          
           <Route path="/tos" element={<TOSPage />} />
 
           {/* Social Network Routes */}
@@ -162,26 +165,26 @@ export default function App() {
             }
           />
           <Route
+            path="/profile/:username/follows"
+            element={
+              <ProtectedRoute>
+                <FollowsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/report/:postId"
+            element={
+              <ProtectedRoute>
+                <ReportPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/settings"
             element={
               <ProtectedRoute>
                 <SettingsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/post/:postId"
-            element={
-              <ProtectedRoute>
-                <PostDetailPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/wallet"
-            element={
-              <ProtectedRoute>
-                <CheckoutPage />
               </ProtectedRoute>
             }
           />
@@ -194,10 +197,10 @@ export default function App() {
             }
           />
           <Route
-            path="/checkout/:paymentId"
+            path="/post/:postId"
             element={
               <ProtectedRoute>
-                <CheckoutPage />
+                <PostDetailPage />
               </ProtectedRoute>
             }
           />

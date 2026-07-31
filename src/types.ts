@@ -4,6 +4,8 @@ export type Theme = 'light' | 'dark' | 'auto';
 export type AccountStatus = 'active' | 'suspended' | 'disabled' | 'limited' | 'permanently_disabled' | 'deactivated';
 export type AppealStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
+export type SubscriptionPlan = 'none' | 'essential' | 'premium' | 'diamond';
+
 export interface UserProfile {
   id: string;
   user_id: string;
@@ -29,6 +31,9 @@ export interface UserProfile {
   created_at: string;
   needsProfileSetup?: boolean;
   is_2fa_enabled?: boolean;
+  is_upgraded?: boolean;
+  subscription_plan?: SubscriptionPlan;
+  interests?: string[];
 }
 
 export interface Post {
@@ -132,4 +137,5 @@ export interface Game {
   category?: string;
   thumbnail_url?: string;
   banner_url?: string;
+  developer?: string;
 }

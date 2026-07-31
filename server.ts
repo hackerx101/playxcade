@@ -118,6 +118,66 @@ app.post('/api/send-suspension-email', async (req, res) => {
   }
 });
 
+// API route: Link Metadata Unfurling
+app.post('/api/unfurl', async (req, res) => {
+  try {
+    const { url } = req.body;
+    const { getLinkPreview } = await import('link-preview-js');
+    const preview = await getLinkPreview(url);
+    res.json(preview);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API route: Gemini Summary
+app.post('/api/gemini/summarize', async (req, res) => {
+  try {
+    const { messages } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY is not set' });
+    }
+    
+    // Simplistic import/usage based on user request to use @google/genai
+    const { GoogleGenAI } = await import('@google/genai');
+    const ai = new GoogleGenAI({ apiKey });
+    
+    const prompt = `Summarize these 5 recent messages:\n\n${messages.map((m: any) => `${m.sender_username || 'User'}: ${m.text}`).join('\n')}`;
+    
+    const result = await ai.models.generateContent({
+      model: 'gemini-1.5-flash',
+      contents: prompt,
+    });
+    
+    res.json({ summary: result.text() });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// API route: Cloudflare Calls Proxy
+app.post('/api/cloudflare/calls/new', async (req, res) => {
+  try {
+    const appId = 'ce6166e0362af275b7fce968ceb80ba5';
+    const secret = '6e84e6ec389e4153efc2ce7be82bd8ade051426fce5da8643b1f2e7bfcb735c2';
+    
+    const response = await fetch(`https://rtc.live.cloudflare.com/v1/apps/${appId}/sessions/new`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${secret}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(req.body)
+    });
+    
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Vite middleware setup
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {

@@ -82,7 +82,13 @@ interface AuthContextType {
   sendMessage: (chatId: string, text: string, username?: string) => void;
   fetchMessages: (chatId: string) => void;
   deleteMessage: (messageId: string, chatId: string) => Promise<void>;
+  editMessage: (messageId: string, newText: string, chatId: string) => Promise<void>;
+  reportMessage: (messageId: string, reason: string) => Promise<void>;
+  blockUser: (userId: string) => Promise<void>;
   fetchCachedProfile: (userIdOrUsername: string) => Promise<UserProfile | null>;
+  uploadFile: (file: File) => Promise<string>;
+  onlineUsers: Record<string, string>;
+  joinRandomChat: () => string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -103,6 +109,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [verifications, setVerifications] = useState<IdentityVerification[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, string>>({});
+
+  // Presence tracking
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase.channel('online_users');
+    channel.on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState();
+      const online: Record<string, string> = {};
+      Object.keys(state).forEach(key => {
+        const presence = (state[key] as any)[0];
+        online[presence.user_id] = presence.status;
+      });
+      setOnlineUsers(online);
+    }).subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ user_id: user.user_id, status: 'online' });
+      }
+    });
+    return () => { channel.unsubscribe(); };
+  }, [user]);
+
+  const uploadFile = async (file: File) => {
+      const { data, error } = await supabase.storage.from('media').upload(`${Date.now()}_${file.name}`, file);
+      if (error) throw error;
+      return supabase.storage.from('media').getPublicUrl(data.path).data.publicUrl;
+  }
 
   // Real-time Firestore notifications listener using onSnapshot
   useEffect(() => {
@@ -1021,7 +1054,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         created_at: nowTime
       };
 
+      // Firestore
       await setDoc(doc(db, 'messages', msgId), newMsg);
+      // Supabase
+      supabase.from('messages').insert({ ...newMsg }).then(() => {});
 
       // Invalidate message cache, update local state, and save to localStorage
       const currentMsgs = appCache.getMessages(actualChatId) || messages;
@@ -1060,15 +1096,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteMessage = async (messageId: string, chatId: string) => {
     if (!user) return;
     await deleteDoc(doc(db, 'messages', messageId));
+    supabase.from('messages').delete().eq('id', messageId).then(() => {});
 
     const currentMsgs = appCache.getMessages(chatId) || messages;
     const updatedMsgs = currentMsgs.filter(m => m.id !== messageId);
     appCache.setMessages(chatId, updatedMsgs);
     setMessages(updatedMsgs);
-    try {
-      localStorage.setItem(`playxcade_msgs_${chatId}`, JSON.stringify(updatedMsgs));
-    } catch (e) {}
+    localStorage.setItem(`playxcade_msgs_${chatId}`, JSON.stringify(updatedMsgs));
   };
+
+  const editMessage = async (messageId: string, newText: string, chatId: string) => {
+    if (!user) return;
+    await updateDoc(doc(db, 'messages', messageId), { text: newText, edited: true });
+    supabase.from('messages').update({ text: newText, edited: true }).eq('id', messageId).then(() => {});
+    
+    const currentMsgs = appCache.getMessages(chatId) || messages;
+    const updatedMsgs = currentMsgs.map(m => m.id === messageId ? { ...m, text: newText, edited: true } : m);
+    appCache.setMessages(chatId, updatedMsgs);
+    setMessages(updatedMsgs);
+    localStorage.setItem(`playxcade_msgs_${chatId}`, JSON.stringify(updatedMsgs));
+  };
+
+  const reportMessage = async (messageId: string, reason: string) => {
+    if (!user) return;
+    await addDoc(collection(db, 'reports'), {
+      messageId,
+      reporterId: user.user_id,
+      reason,
+      created_at: new Date().toISOString()
+    });
+    alert('Message reported.');
+  };
+
+  const blockUser = async (userId: string) => {
+    if (!user) return;
+    // Add to firebase 'blocked' collection or user profile
+    await addDoc(collection(db, 'blocked'), {
+        blockerId: user.user_id,
+        blockedId: userId,
+        created_at: new Date().toISOString()
+    });
+  };
+
+  const joinRandomChat = () => {
+    const voiceChannels = channels.filter(c => c.type === 'voice');
+    if (voiceChannels.length > 0) {
+      const randomChannel = voiceChannels[Math.floor(Math.random() * voiceChannels.length)];
+      return randomChannel.id;
+    }
+    return null;
+  };
+
 
   return (
     <AuthContext.Provider
@@ -1079,7 +1157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addRecentSearch, clearRecentSearches, removeRecentSearch, followingIds,
         login, signup, loginWithSupabase, signupWithSupabase, logout, completeOnboarding, createPost, deletePost, archivePost,
         likePost, toggleFollow, updateProfile, submitAppeal, verifyIdentity, restoreAccountStatus,
-        verifications, sendMessage, fetchMessages, deleteMessage, fetchCachedProfile
+        verifications, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, fetchCachedProfile, uploadFile, onlineUsers, joinRandomChat
       }}
     >
       {children}

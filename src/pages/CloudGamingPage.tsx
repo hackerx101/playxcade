@@ -180,6 +180,11 @@ export const CloudGamingPage: React.FC = () => {
                 <span className="bg-slate-900/80 text-slate-300 border border-slate-700/80 px-2.5 py-0.5 rounded-md text-[10px]">
                   {selectedGame.category}
                 </span>
+                {selectedGame.developer && (
+                  <span className="bg-slate-900/80 text-slate-300 border border-slate-700/80 px-2.5 py-0.5 rounded-md text-[10px] font-semibold text-indigo-300">
+                    {selectedGame.developer}
+                  </span>
+                )}
                 <span className="text-amber-400 flex items-center space-x-1 font-bold">
                   <Star className="w-3.5 h-3.5 fill-amber-400" />
                   <span>{selectedGame.rating}</span>
@@ -201,7 +206,7 @@ export const CloudGamingPage: React.FC = () => {
                   className="px-7 py-3 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-xl shadow-indigo-600/30 flex items-center space-x-2.5 transition transform"
                 >
                   <Play className="w-4 h-4 fill-white" />
-                  <span>PLAY WITH CLOUD PASS</span>
+                  <span>INSTALL</span>
                 </button>
 
                 <div className="flex items-center space-x-2 bg-slate-900/90 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-300">
@@ -266,13 +271,13 @@ export const CloudGamingPage: React.FC = () => {
                   }`}
                 >
                   {/* Poster Thumbnail */}
-                  <div className="aspect-[3/4] relative overflow-hidden bg-slate-950">
+                  <div className="aspect-square relative overflow-hidden bg-slate-950 rounded-2xl p-1">
                     <img
                       src={game.thumbnail_url}
                       alt={game.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                      className="w-full h-full object-cover rounded-xl group-hover:scale-105 transition duration-300"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-80" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-50 rounded-2xl" />
                     
                     {/* Launch Play Overlay on Hover */}
                     <div className="absolute inset-0 bg-indigo-900/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center p-2 backdrop-blur-[2px]">
@@ -298,6 +303,11 @@ export const CloudGamingPage: React.FC = () => {
                     <h3 className="text-xs font-bold text-white truncate group-hover:text-indigo-400 transition">
                       {game.title}
                     </h3>
+                    {game.developer && (
+                      <p className="text-[10px] text-slate-500 font-medium truncate">
+                        {game.developer}
+                      </p>
+                    )}
                     <div className="flex items-center justify-between text-[10px] text-slate-400">
                       <span>{game.genre}</span>
                       <span className="text-amber-400 font-bold flex items-center space-x-0.5">
@@ -376,9 +386,12 @@ export const CloudGamingPage: React.FC = () => {
 
             <div className="space-y-1">
               <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-black px-2.5 py-1 rounded-full uppercase border border-indigo-500/30">
-                Garexcell Cloud Stream Node
+                APP STORE
               </span>
               <h3 className="text-2xl font-black text-white">{launchModalGame.title}</h3>
+              {launchModalGame.developer && (
+                <p className="text-sm font-semibold text-indigo-400">{launchModalGame.developer}</p>
+              )}
               <p className="text-xs text-slate-400">{launchModalGame.genre} • {launchModalGame.category}</p>
             </div>
 
@@ -386,29 +399,29 @@ export const CloudGamingPage: React.FC = () => {
               <div className="flex items-center justify-between text-xs text-slate-300">
                 <span className="flex items-center space-x-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Cloud Server Allocation</span>
+                  <span>Verified by App Store</span>
                 </span>
-                <span className="font-mono text-emerald-400 font-bold">READY</span>
+                <span className="font-mono text-emerald-400 font-bold">SECURE</span>
               </div>
               <div className="flex items-center justify-between text-xs text-slate-300">
                 <span className="flex items-center space-x-2">
-                  <Gamepad2 className="w-4 h-4 text-indigo-400" />
-                  <span>Input Controller</span>
+                  <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                  <span>Rating</span>
                 </span>
-                <span className="font-mono text-indigo-400 font-bold">Xbox / DualShock</span>
+                <span className="font-mono text-amber-400 font-bold">{launchModalGame.rating} / 5.0</span>
               </div>
             </div>
 
             <div className="space-y-2">
               <button
                 onClick={() => {
-                  alert(`Initializing Garexcell Cloud Session for ${launchModalGame.title}... Full GPU stream allocated.`);
+                  alert(`Installing ${launchModalGame.title}... You will be notified when it's ready.`);
                   setLaunchModalGame(null);
                 }}
                 className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm rounded-2xl shadow-xl shadow-indigo-600/30 transition flex items-center justify-center space-x-2"
               >
                 <Play className="w-4 h-4 fill-white" />
-                <span>START CLOUD STREAM</span>
+                <span>INSTALL GAME</span>
               </button>
 
               <button

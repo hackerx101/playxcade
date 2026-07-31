@@ -9,30 +9,27 @@ interface CreatePostModalProps {
 }
 
 export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClose }) => {
-  const { createPost } = useAuth();
+  const { createPost, uploadFile } = useAuth();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<'text' | 'image' | 'video'>('text');
   const [caption, setCaption] = useState('');
-  const [mediaUrl, setMediaUrl] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [videoUrl, setVideoUrl] = useState('');
+  const [useUpload, setUseUpload] = useState(true);
   const [hashtagInput, setHashtagInput] = useState('');
   const [category, setCategory] = useState('Warlands');
 
   if (!isOpen) return null;
 
-  const categories = [
-    'Warlands',
-    'Apex Overdrive',
-    'Mythic Clash',
-    'Esports Highlights',
-    'Clutches & Plays',
-    'Streaming',
-    'General Gaming',
-  ];
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!caption.trim() && !mediaUrl) return;
+    if (!caption.trim() && !file && !videoUrl) return;
+
+    let media_url = videoUrl;
+    if (file) {
+      media_url = await uploadFile(file);
+    }
 
     // Extract hashtags from caption or custom input
     const extractedHashtags = (caption.match(/#[a-zA-Z0-9_]+/g) || []).concat(
@@ -42,7 +39,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     const created = createPost({
       caption,
       type: activeTab,
-      media_url: mediaUrl || undefined,
+      media_url: media_url || undefined,
       hashtags: Array.from(new Set(extractedHashtags)),
       category,
       tags: [category],
@@ -50,7 +47,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
 
     onClose();
     setCaption('');
-    setMediaUrl('');
+    setVideoUrl('');
+    setFile(null);
     setHashtagInput('');
     navigate(`/post/${created.id}`);
   };
@@ -66,7 +64,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600:text-slate-200 rounded-lg hover:bg-slate-100:bg-slate-700 transition"
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -81,7 +79,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center space-x-1.5 transition ${
                 activeTab === 'text'
                   ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800:text-slate-200'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               <FileText className="w-4 h-4" />
@@ -94,7 +92,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center space-x-1.5 transition ${
                 activeTab === 'image'
                   ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800:text-slate-200'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               <ImageIcon className="w-4 h-4" />
@@ -107,7 +105,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center space-x-1.5 transition ${
                 activeTab === 'video'
                   ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800:text-slate-200'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               <Video className="w-4 h-4" />
@@ -130,23 +128,30 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             />
           </div>
 
-          {/* Media URL Input for Image / Video */}
+          {/* Media Input for Image / Video */}
           {activeTab !== 'text' && (
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                {activeTab === 'video' ? 'Video File or Stream URL' : 'Image URL'}
-              </label>
-              <input
-                type="url"
-                value={mediaUrl}
-                onChange={(e) => setMediaUrl(e.target.value)}
-                placeholder={
-                  activeTab === 'video'
-                    ? 'https://example.com/gameplay.mp4'
-                    : 'https://images.unsplash.com/photo-...'
-                }
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900"
-              />
+            <div className='space-y-2'>
+              <div className='flex items-center space-x-2'>
+                  <button type='button' onClick={() => setUseUpload(true)} className={`text-xs px-3 py-1 rounded-full ${useUpload ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>Upload</button>
+                  <button type='button' onClick={() => setUseUpload(false)} className={`text-xs px-3 py-1 rounded-full ${!useUpload ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>Stream URL</button>
+              </div>
+              
+              {useUpload ? (
+                <input
+                    type="file"
+                    accept={activeTab === 'video' ? 'video/*' : 'image/*'}
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                />
+              ) : (
+                <input
+                    type="url"
+                    value={videoUrl}
+                    onChange={(e) => setVideoUrl(e.target.value)}
+                    placeholder={activeTab === 'video' ? 'https://example.com/stream.m3u8' : ''}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900"
+                />
+              )}
             </div>
           )}
 

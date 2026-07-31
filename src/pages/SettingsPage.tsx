@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import {
-  Globe, Shield, Tv, Check, User, Lock, Mail, ChevronRight, Bell, HelpCircle, LogOut, Sparkles, Smartphone, Key, FileText, Activity, Trash2, Link as LinkIcon, Wallet
-} from 'lucide-react';
+  Globe, Shield, Tv, Check, User, Lock, Mail, ChevronRight, Bell, HelpCircle, LogOut, Sparkles, Smartphone, Key, FileText, Activity, Trash2, Link as LinkIcon, Wallet, 
+Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
 import { IOSBackButton } from '../components/IOSBackButton';
 import { useAuth } from '../context/AuthContext';
-import { Language } from '../types';
+import { db } from '../lib/firebase';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -31,6 +32,8 @@ export const SettingsPage: React.FC = () => {
     | 'deactivate'
     | 'security'
     | 'streaming'
+    | 'subscription'
+    | 'reports'
   >('main');
 
   // Form states
@@ -44,6 +47,7 @@ export const SettingsPage: React.FC = () => {
   const [deactivatePassword, setDeactivatePassword] = useState('');
   // 2FA states
   const [twoFactorEnabled, setTwoFactorEnabled] = useState<boolean>(user?.is_2fa_enabled || false);
+  const [reports, setReports] = useState<any[]>([]);
   const [totpToken, setTotpToken] = useState<string>('');
   const [otpInput, setOtpInput] = useState<string>('');
   const [generatedOtpCode, setGeneratedOtpCode] = useState<string>('');
@@ -57,10 +61,16 @@ export const SettingsPage: React.FC = () => {
   const [streamRegion, setStreamRegion] = useState('Auto (US East)');
   const [notification, setNotification] = useState<string | null>(null);
 
-  const showNotification = (msg: string) => {
-    setNotification(msg);
-    setTimeout(() => setNotification(null), 3000);
-  };
+  useEffect(() => {
+    if (screen === 'reports') {
+      const fetchReports = async () => {
+        const q = query(collection(db, 'reports'), orderBy('created_at', 'desc'));
+        const snapshot = await getDocs(q);
+        setReports(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      };
+      fetchReports();
+    }
+  }, [screen]);
 
   const handlePersonalSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,6 +132,7 @@ export const SettingsPage: React.FC = () => {
               {screen === 'deactivate' && 'Deactivate Account'}
               {screen === 'security' && 'Security & Login'}
               {screen === 'streaming' && 'Cloud Gaming & Streaming'}
+              {screen === 'subscription' && 'Subscriptions & Plans'}
             </h1>
             <p className="text-xs text-slate-500 font-medium">
               {screen === 'main' ? 'Manage your account and app preferences' : 'Security & Privacy Control Center'}
@@ -155,18 +166,19 @@ export const SettingsPage: React.FC = () => {
         {screen === 'main' && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 divide-y divide-slate-100 overflow-hidden">
             {[
-              { id: 'wallet', title: 'Wallet & Top-Up', desc: 'Virtual currency, vouchers, and balance ($' + (user?.wallet_balance || 0) + '.00)', icon: Wallet, action: () => navigate('/wallet') },
               { id: 'account_center', title: 'Accounts Center', desc: 'All connected accounts and security settings', icon: Shield },
               { id: 'general', title: 'General & Language', desc: 'Interface language and preferences', icon: Globe },
               { id: 'accessibility', title: 'Accessibility', desc: 'Display, font size, and motion', icon: Bell },
               { id: 'security', title: 'Security & Login', desc: 'Active sessions and passwords', icon: Lock },
               { id: 'streaming', title: 'Streaming Configuration', desc: 'Cloud server quality and region', icon: Tv },
+              { id: 'subscription', title: 'Subscriptions & Plans', desc: 'Manage your plan and billing', icon: Wallet },
+              { id: 'reports', title: 'Report Status', desc: 'View all community reports', icon: Activity },
             ].map((item) => {
               const Icon = item.icon;
               return (
                 <button
                   key={item.id}
-                  onClick={() => item.action ? item.action() : setScreen(item.id as any)}
+                  onClick={() => (item as any).action ? (item as any).action() : setScreen(item.id as any)}
                   className="w-full p-4 hover:bg-slate-50 flex items-center justify-between transition text-left group"
                 >
                   <div className="flex items-center space-x-3.5">
@@ -187,39 +199,102 @@ export const SettingsPage: React.FC = () => {
 
         {/* ACCOUNTS CENTER FULL MENU */}
         {screen === 'account_center' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 divide-y divide-slate-100 overflow-hidden">
-            {[
-              { id: 'personal_details', title: 'Personal Details', desc: 'Manage your contact info, handle, and bio', icon: User },
-              { id: 'connected_services', title: 'Connected Service', desc: 'Google, GitHub, and Discord integrations', icon: LinkIcon },
-              { id: 'shared_logins', title: 'Shared Logins', desc: 'Cross-platform account synchronization', icon: Shield },
-              { id: 'apps_and_services', title: 'Apps and Service', desc: 'Third-party apps with access to your account', icon: Sparkles },
-              { id: 'accounts_management', title: 'Accounts Management', desc: 'Avatar, language, captions, verification, review activity', icon: User },
-              { id: 'my_info', title: 'My info and permissions', desc: 'Data access, downloads, and privacy controls', icon: FileText },
-              { id: 'sessions', title: 'Sessions: Where you are logged in', desc: 'Active devices and browser sessions', icon: Smartphone },
-              { id: 'change_password', title: 'Change Password', desc: 'Update secure account password', icon: Lock },
-              { id: 'two_factor', title: '2FA Authentications', desc: 'Authenticator app and SMS verification codes', icon: Key },
-              { id: 'deactivate', title: 'Deactivate Account', desc: 'Temporarily disable your profile and data', icon: Trash2 },
-            ].map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setScreen(item.id as any)}
-                  className="w-full p-4 hover:bg-slate-50 flex items-center justify-between transition text-left group"
-                >
-                  <div className="flex items-center space-x-3.5">
-                    <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition">
-                      <Icon className="w-5 h-5" />
+          <div className="space-y-6">
+            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
+              <div className="relative z-10">
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-4">
+                  <Shield className="w-6 h-6 text-white" />
+                </div>
+                <h2 className="text-xl font-bold mb-1">Meta Accounts Center</h2>
+                <p className="text-sm text-indigo-100 opacity-90">Manage your connected experiences and account settings across all devices.</p>
+              </div>
+              <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white opacity-10 rounded-full blur-3xl"></div>
+              <div className="absolute -top-10 -left-10 w-32 h-32 bg-purple-400 opacity-20 rounded-full blur-2xl"></div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-5 py-3 bg-slate-50 border-b border-slate-100">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Settings</h3>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {[
+                  { id: 'personal_details', title: 'Personal Details', desc: 'Manage your contact info, handle, and bio', icon: User },
+                  { id: 'accounts_management', title: 'Accounts Management', desc: 'Avatar, language, captions, verification', icon: Users },
+                ].map((item) => (
+                  <button key={item.id} onClick={() => setScreen(item.id as any)} className="w-full p-4 hover:bg-slate-50 flex items-center justify-between transition text-left group">
+                    <div className="flex items-center space-x-3.5">
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition"><item.icon className="w-5 h-5" /></div>
+                      <div><h4 className="font-semibold text-sm text-slate-900">{item.title}</h4><p className="text-xs text-slate-500">{item.desc}</p></div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-sm text-slate-900">{item.title}</h4>
-                      <p className="text-xs text-slate-500">{item.desc}</p>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-400" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-5 py-3 bg-slate-50 border-b border-slate-100">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Security & Privacy</h3>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {[
+                  { id: 'change_password', title: 'Password & Security', desc: 'Change password and secure account', icon: Lock },
+                  { id: 'two_factor', title: 'Two-Factor Authentication', desc: 'Authenticator app and SMS codes', icon: Key },
+                  { id: 'sessions', title: 'Login Sessions', desc: 'Active devices and browser sessions', icon: Smartphone },
+                  { id: 'my_info', title: 'My Info & Permissions', desc: 'Data access, downloads, and privacy controls', icon: FileText },
+                ].map((item) => (
+                  <button key={item.id} onClick={() => setScreen(item.id as any)} className="w-full p-4 hover:bg-slate-50 flex items-center justify-between transition text-left group">
+                    <div className="flex items-center space-x-3.5">
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition"><item.icon className="w-5 h-5" /></div>
+                      <div><h4 className="font-semibold text-sm text-slate-900">{item.title}</h4><p className="text-xs text-slate-500">{item.desc}</p></div>
                     </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
-                </button>
-              );
-            })}
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-400" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-5 py-3 bg-slate-50 border-b border-slate-100">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Connections & Data</h3>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {[
+                  { id: 'connected_services', title: 'Connected Services', desc: 'Google, GitHub, and Discord integrations', icon: LinkIcon },
+                  { id: 'shared_logins', title: 'Shared Logins', desc: 'Cross-platform account synchronization', icon: Shield },
+                  { id: 'apps_and_services', title: 'Apps and Services', desc: 'Third-party apps with access to your account', icon: Sparkles },
+                  { id: 'deactivate', title: 'Deactivate or Delete', desc: 'Temporarily disable your profile and data', icon: Trash2 },
+                ].map((item) => (
+                  <button key={item.id} onClick={() => setScreen(item.id as any)} className="w-full p-4 hover:bg-slate-50 flex items-center justify-between transition text-left group">
+                    <div className="flex items-center space-x-3.5">
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 text-rose-500 flex items-center justify-center group-hover:bg-rose-50 transition"><item.icon className="w-5 h-5" /></div>
+                      <div><h4 className="font-semibold text-sm text-slate-900">{item.title}</h4><p className="text-xs text-slate-500">{item.desc}</p></div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-400" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 11. REPORTS */}
+        {screen === 'reports' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+            <h3 className="font-bold text-sm text-slate-900">Community Reports</h3>
+            {reports.length === 0 ? (
+                <p className='text-xs text-slate-500'>No reports found.</p>
+            ) : (
+                <div className='space-y-3'>
+                    {reports.map((report) => (
+                        <div key={report.id} className='p-4 bg-slate-50 rounded-xl border border-slate-200'>
+                            <p className='text-xs font-bold'>Message: {report.messageId}</p>
+                            <p className='text-xs text-slate-600'>Reason: {report.reason}</p>
+                            <p className='text-[10px] text-slate-400 mt-1'>{new Date(report.created_at).toLocaleString()}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
           </div>
         )}
 
@@ -269,24 +344,30 @@ export const SettingsPage: React.FC = () => {
 
         {/* 2. CONNECTED SERVICE */}
         {screen === 'connected_services' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 space-y-6">
+            <h3 className="font-bold text-sm text-slate-900">Connected Services</h3>
             {[
-              { name: 'GitHub Developer', status: 'Connected', username: user?.username },
-              { name: 'Discord Gaming', status: 'Not Connected', username: null },
+              { name: 'Epic Games', icon: '🎮' },
+              { name: 'PlayStation Network', icon: '🕹️' },
+              { name: 'YouTube', icon: '📺' },
             ].map((svc) => (
-              <div key={svc.name} className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-xs text-slate-900">{svc.name}</h4>
-                  <p className="text-[11px] text-slate-500">{svc.username || 'Ready to link'}</p>
+              <div key={svc.name} className="p-5 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                <div className='flex items-center gap-3'>
+                  <span className='text-2xl'>{svc.icon}</span>
+                  <div>
+                    <h4 className="font-bold text-sm text-slate-900">{svc.name}</h4>
+                    <p className="text-[11px] text-slate-500 font-medium">Not connected</p>
+                  </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => showNotification(`${svc.name} sync status updated.`)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    svc.status === 'Connected' ? 'bg-emerald-100 text-emerald-800' : 'bg-indigo-600 text-white'
-                  }`}
+                  onClick={() => {
+                      // TODO: Add your ${svc.name} API Key here
+                      showNotification(`${svc.name} placeholder updated.`);
+                  }}
+                  className="px-5 py-2.5 bg-black text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition"
                 >
-                  {svc.status}
+                  Connect
                 </button>
               </div>
             ))}
@@ -623,6 +704,53 @@ export const SettingsPage: React.FC = () => {
               <span>Two-Factor Authentication Setup</span>
               <ChevronRight className="w-4 h-4 text-slate-400" />
             </button>
+          </div>
+        )}
+
+        {/* SUBSCRIPTION SCREEN */}
+        {screen === 'subscription' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 space-y-4">
+              <h3 className="font-bold text-sm text-slate-900">Your Subscription</h3>
+              {user?.subscription_plan && user.subscription_plan !== 'none' ? (
+                <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100 flex justify-between items-center">
+                  <div>
+                    <span className="text-xs font-bold text-indigo-900 uppercase tracking-wide">Current Plan</span>
+                    <p className="text-lg font-bold text-indigo-950 capitalize">{user.subscription_plan}</p>
+                  </div>
+                  <div className="px-4 py-1.5 bg-white rounded-xl text-xs font-bold text-indigo-600 shadow-sm border border-indigo-200">Active</div>
+                </div>
+              ) : (
+                <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 text-xs text-slate-600 font-medium">
+                  You are not currently subscribed to any plan.
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="font-bold text-sm text-slate-900 px-1">Call Plans</h3>
+              {[
+                { name: 'Essential', price: '5.99', features: ['Standard Calls', 'Basic Support'] },
+                { name: 'Premium', price: '20.99', features: ['HD Calls', 'Priority Support', 'No Ads'] },
+                { name: 'Diamond', price: '199.99', features: ['All Premium', 'Dedicated Manager', 'Unlimited Access'] },
+              ].map((plan) => (
+                <div key={plan.name} className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 space-y-5">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-bold text-xl text-slate-900">{plan.name}</h4>
+                    <span className="text-2xl font-bold text-slate-950">${plan.price}</span>
+                  </div>
+                  <ul className="text-sm text-slate-600 space-y-3 font-medium">
+                    {plan.features.map(f => <li key={f} className="flex items-center gap-3"><Check className="w-4 h-4 text-emerald-500" /> {f}</li>)}
+                  </ul>
+                  <button
+                    onClick={() => navigate(`/checkout?plan=${plan.name.toLowerCase()}&amount=${plan.price}`)}
+                    className="w-full py-4 bg-black text-white font-bold text-sm rounded-2xl hover:bg-slate-800 transition shadow-lg"
+                  >
+                    Upgrade to {plan.name}
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

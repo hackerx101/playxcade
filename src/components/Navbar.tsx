@@ -77,22 +77,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onStartStream, showLiveIcon = tr
           </div>
         )}
 
-        {/* Right Side: Theme Toggle / Search / Settings / User Menu */}
+        {/* Right Side: Search / Settings / User Menu */}
         <div className="flex items-center space-x-2 sm:space-x-3">
-          {/* Theme Switcher Icon */}
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="p-2 rounded-xl text-slate-600 hover:bg-slate-100:bg-slate-800 transition flex items-center justify-center"
-            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            aria-label="Toggle theme"
-          >
-            {theme === 'dark' ? (
-              <Sun className="w-5 h-5 text-amber-400" />
-            ) : (
-              <Moon className="w-5 h-5 text-indigo-600" />
-            )}
-          </button>
-
+          
           {!hideLinks && (
             <Link
               to="/explore"
@@ -193,15 +180,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onStartStream, showLiveIcon = tr
 
           {user ? (
             <div className="flex items-center space-x-2">
-              <Link
-                to="/wallet"
-                className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition shadow-xs"
-                title="Digital Wallet & Balance"
-              >
-                <Wallet className="w-4 h-4 text-emerald-600" />
-                <span>${user.wallet_balance || 0}.00</span>
-              </Link>
-
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => setMenuOpen(!menuOpen)}
@@ -220,15 +198,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onStartStream, showLiveIcon = tr
                       <p className="text-xs font-semibold text-slate-400">LOGGED IN AS</p>
                       <p className="text-sm font-bold text-slate-900 truncate">@{user.username}</p>
                     </div>
-
-                    <Link
-                      to="/wallet"
-                      onClick={() => setMenuOpen(false)}
-                      className="flex items-center space-x-2.5 px-4 py-2.5 text-sm font-semibold text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100/60 transition"
-                    >
-                      <Wallet className="w-4 h-4 text-emerald-600" />
-                      <span>Wallet (${user.wallet_balance || 0}.00)</span>
-                    </Link>
 
                     <Link
                       to="/profile"

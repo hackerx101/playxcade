@@ -71,7 +71,7 @@ export const ExplorePage: React.FC = () => {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 sm:pb-8 font-sans selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-white text-slate-900 pb-20 sm:pb-8 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       <Navbar showLiveIcon={true} />
 
       <main className="max-w-2xl mx-auto px-3 sm:px-6 pt-4 space-y-6">
