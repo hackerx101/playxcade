@@ -104,13 +104,88 @@ interface AuthContextType {
   setUpgradePromptOpen: (val: boolean) => void;
 }
 
+const DEFAULT_SEED_POSTS: Post[] = [
+  {
+    id: 'esports_caribbean_freefire',
+    user_id: 'esports_caribbean_user',
+    author_username: 'Esports Carribean',
+    author_email: 'info@esportscaribbean.com',
+    author_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=EsportsCaribbean',
+    author_is_verified: true,
+    caption: '🔥 BIG ANNOUNCEMENT! Esports Carribean is hosting the ultimate Free Fire Championship live across The Bahamas 🇧🇸 and Jamaica 🇯🇲! $15,000 cash prize pool! Squad registrations open next week. Who is repping their island? 🏝️🎮',
+    type: 'text',
+    tags: ['freefire', 'esports', 'bahamas', 'jamaica'],
+    hashtags: ['#FreeFire', '#EsportsCarribean', '#Bahamas', '#Jamaica'],
+    category: 'Esports',
+    likes_count: 150,
+    comments_count: 24,
+    is_liked: false,
+    is_official: true,
+    created_at: '1h ago'
+  },
+  {
+    id: 'sys_tip_1',
+    user_id: 'system_init',
+    author_username: 'playxcade_system',
+    author_email: 'system@garexcell.com',
+    author_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=system',
+    author_is_verified: true,
+    caption: '💡 Playxcade Tip #1: For butter-smooth streaming performance, set your bitrate to 4500 kbps and enable hardware NVENC/VAAPI encoding in studio settings!',
+    type: 'text',
+    tags: ['tips', 'streaming'],
+    hashtags: ['#PlayxcadeTips', '#Streaming'],
+    category: 'Tutorial',
+    likes_count: 42,
+    comments_count: 3,
+    is_liked: false,
+    is_official: true,
+    created_at: '2h ago'
+  },
+  {
+    id: 'sys_tip_2',
+    user_id: 'system_init',
+    author_username: 'playxcade_system',
+    author_email: 'system@garexcell.com',
+    author_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=system',
+    author_is_verified: true,
+    caption: '💡 Playxcade Tip #2: Protect your vision during late-night gaming sessions! Toggle dark mode in app settings and take a 5-minute screen break every hour.',
+    type: 'text',
+    tags: ['tips', 'gaming', 'health'],
+    hashtags: ['#GamerHealth', '#PlayxcadeTips'],
+    category: 'Community',
+    likes_count: 68,
+    comments_count: 5,
+    is_liked: false,
+    is_official: true,
+    created_at: '5h ago'
+  },
+  {
+    id: 'sys_tip_3',
+    user_id: 'system_init',
+    author_username: 'playxcade_system',
+    author_email: 'system@garexcell.com',
+    author_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=system',
+    author_is_verified: true,
+    caption: '💡 Playxcade Tip #3: Enable Real-time Sync in chat channels to get instant live message updates and stream reactions without refreshing!',
+    type: 'text',
+    tags: ['tips', 'chat'],
+    hashtags: ['#PlayxcadeTips', '#RealTimeSync'],
+    category: 'Community',
+    likes_count: 89,
+    comments_count: 8,
+    is_liked: false,
+    is_official: true,
+    created_at: '8h ago'
+  }
+];
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [authProviderType, setAuthProviderType] = useState<'firebase' | 'supabase'>('firebase');
 
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<Post[]>(DEFAULT_SEED_POSTS);
   const [chats, setChats] = useState<Chat[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -562,7 +637,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return postObj;
         });
 
-        setPosts(fetchedPosts);
+        const fetchedIds = new Set(fetchedPosts.map(p => p.id));
+        const mergedPosts = [...fetchedPosts];
+        for (const sp of DEFAULT_SEED_POSTS) {
+          if (!fetchedIds.has(sp.id)) {
+            mergedPosts.push(sp);
+          }
+        }
+
+        setPosts(mergedPosts);
       } else {
         // Check Supabase if Firestore posts are not seeded yet
         const { data } = await supabase

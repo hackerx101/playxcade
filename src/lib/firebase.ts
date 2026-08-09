@@ -94,6 +94,100 @@ export const seedFirestoreCollections = async () => {
       });
     }
 
+    // 2b. Tip Posts from playxcade_system
+    const tip1Ref = doc(db, 'posts', 'sys_tip_1');
+    const tip1Snap = await getDoc(tip1Ref);
+    if (!tip1Snap.exists()) {
+      await setDoc(tip1Ref, {
+        id: 'sys_tip_1',
+        user_id: 'system_init',
+        author_username: 'playxcade_system',
+        author_email: 'system@garexcell.com',
+        author_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=system',
+        author_is_verified: true,
+        caption: '💡 Playxcade Tip #1: For butter-smooth streaming performance, set your bitrate to 4500 kbps and enable hardware NVENC/VAAPI encoding in studio settings!',
+        type: 'text',
+        tags: ['tips', 'streaming'],
+        hashtags: ['#PlayxcadeTips', '#Streaming'],
+        category: 'Tutorial',
+        likes_count: 42,
+        comments_count: 3,
+        is_archived: false,
+        is_official: true,
+        created_at: new Date(Date.now() - 3600000 * 2).toISOString()
+      });
+    }
+
+    const tip2Ref = doc(db, 'posts', 'sys_tip_2');
+    const tip2Snap = await getDoc(tip2Ref);
+    if (!tip2Snap.exists()) {
+      await setDoc(tip2Ref, {
+        id: 'sys_tip_2',
+        user_id: 'system_init',
+        author_username: 'playxcade_system',
+        author_email: 'system@garexcell.com',
+        author_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=system',
+        author_is_verified: true,
+        caption: '💡 Playxcade Tip #2: Protect your vision during late-night gaming sessions! Toggle dark mode in app settings and take a 5-minute screen break every hour.',
+        type: 'text',
+        tags: ['tips', 'gaming', 'health'],
+        hashtags: ['#GamerHealth', '#PlayxcadeTips'],
+        category: 'Community',
+        likes_count: 68,
+        comments_count: 5,
+        is_archived: false,
+        is_official: true,
+        created_at: new Date(Date.now() - 3600000 * 5).toISOString()
+      });
+    }
+
+    const tip3Ref = doc(db, 'posts', 'sys_tip_3');
+    const tip3Snap = await getDoc(tip3Ref);
+    if (!tip3Snap.exists()) {
+      await setDoc(tip3Ref, {
+        id: 'sys_tip_3',
+        user_id: 'system_init',
+        author_username: 'playxcade_system',
+        author_email: 'system@garexcell.com',
+        author_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=system',
+        author_is_verified: true,
+        caption: '💡 Playxcade Tip #3: Enable Real-time Sync in chat channels to get instant live message updates and stream reactions without refreshing!',
+        type: 'text',
+        tags: ['tips', 'chat'],
+        hashtags: ['#PlayxcadeTips', '#RealTimeSync'],
+        category: 'Community',
+        likes_count: 89,
+        comments_count: 8,
+        is_archived: false,
+        is_official: true,
+        created_at: new Date(Date.now() - 3600000 * 8).toISOString()
+      });
+    }
+
+    // 2c. Esports Carribean Free Fire Event Post
+    const esportsRef = doc(db, 'posts', 'esports_caribbean_freefire');
+    const esportsSnap = await getDoc(esportsRef);
+    if (!esportsSnap.exists()) {
+      await setDoc(esportsRef, {
+        id: 'esports_caribbean_freefire',
+        user_id: 'esports_caribbean_user',
+        author_username: 'Esports Carribean',
+        author_email: 'info@esportscaribbean.com',
+        author_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=EsportsCaribbean',
+        author_is_verified: true,
+        caption: '🔥 BIG ANNOUNCEMENT! Esports Carribean is hosting the ultimate Free Fire Championship live across The Bahamas 🇧🇸 and Jamaica 🇯🇲! $15,000 cash prize pool! Squad registrations open next week. Who is repping their island? 🏝️🎮',
+        type: 'text',
+        tags: ['freefire', 'esports', 'bahamas', 'jamaica'],
+        hashtags: ['#FreeFire', '#EsportsCarribean', '#Bahamas', '#Jamaica'],
+        category: 'Esports',
+        likes_count: 150,
+        comments_count: 24,
+        is_archived: false,
+        is_official: true,
+        created_at: new Date(Date.now() - 3600000 * 1).toISOString()
+      });
+    }
+
     // 3. post_likes collection
     const sysLikeRef = doc(db, 'post_likes', 'welcome_post_system_init');
     const sysLikeSnap = await getDoc(sysLikeRef);

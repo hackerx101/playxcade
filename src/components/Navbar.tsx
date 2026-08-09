@@ -37,9 +37,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onStartStream, showLiveIcon = tr
         
         {/* Left Side: Live Icon & Logo */}
         <div className="flex items-center space-x-3">
-          {showLiveIcon && onStartStream && (
+          {showLiveIcon && (
             <button
-              onClick={onStartStream}
+              onClick={() => {
+                if (onStartStream) {
+                  onStartStream();
+                } else {
+                  navigate('/feed?startStream=true');
+                }
+              }}
               className="flex items-center space-x-1.5 px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full text-xs font-semibold shadow-sm transition active:scale-95"
               title="Start Live Stream"
             >

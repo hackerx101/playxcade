@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { Plus, Radio, Flame, Sparkles, Filter } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
@@ -18,9 +18,16 @@ export const FeedPage: React.FC = () => {
   });
 
   const { posts, user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [streamModalOpen, setStreamModalOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
+
+  useEffect(() => {
+    if (searchParams.get('startStream') === 'true') {
+      setStreamModalOpen(true);
+    }
+  }, [searchParams]);
 
   // Only force setup profile if user explicitly needs profile setup (e.g., SSO missing handle)
   const needsOnboarding = user && user.needsProfileSetup === true;
