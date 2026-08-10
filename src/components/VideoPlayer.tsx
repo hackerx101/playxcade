@@ -116,7 +116,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     <div
       ref={containerRef}
       onMouseMove={handleMouseMove}
-      mouseleave={() => isPlaying && setShowControls(false)}
+      onMouseLeave={() => isPlaying && setShowControls(false)}
       onClick={togglePlay}
       className={`relative group bg-slate-950 overflow-hidden rounded-2xl select-none flex items-center justify-center ${className}`}
     >

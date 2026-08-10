@@ -9,9 +9,6 @@ import { WebSocketServer, WebSocket } from 'ws';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const app = express();
 const PORT = 3000;
 
@@ -26,7 +23,7 @@ app.post('/api/send-suspension-email', async (req, res) => {
       return res.status(400).json({ error: 'Missing email or username parameters.' });
     }
 
-    const appOrigin = origin || process.env.APP_URL || 'https://playxcade.com';
+    const appOrigin = origin || process.env.APP_URL || 'https://play.garexcell.com.com';
     const appealUrl = `${appOrigin.replace(/\/$/, '')}/appeal`;
     const suspensionReason = reason || 'Violation of Playxcade Community Guidelines & Terms of Service.';
 
@@ -86,7 +83,7 @@ app.post('/api/send-suspension-email', async (req, res) => {
         <div class="footer">
           <p><strong>Garexcell Security & Community Moderation</strong></p>
           <p>Playxcade Ecosystem &copy; 2026 Garexcell Inc. All rights reserved.</p>
-          <p>This automated email was sent regarding your Playxcade account standing.</p>
+          <p>This automated email was sent regarding your Playxcade account .</p>
         </div>
       </div>
     </body>
@@ -148,11 +145,88 @@ app.post('/api/gemini/summarize', async (req, res) => {
     const prompt = `Summarize these 5 recent messages:\n\n${messages.map((m: any) => `${m.sender_username || 'User'}: ${m.text}`).join('\n')}`;
     
     const result = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-3.6-flash',
       contents: prompt,
     });
     
     res.json({ summary: result.text || 'No summary generated.' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/ai/chat', async (req, res) => {
+  try {
+    const { messages } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY is not set' });
+    }
+    
+    const { GoogleGenAI } = await import('@google/genai');
+    const ai = new GoogleGenAI({ apiKey });
+    
+    // Extract system message if present
+    let systemInstruction;
+    const chatMessages = [];
+    
+    for (const m of messages) {
+      const textContent = m.content ? 
+        (Array.isArray(m.content) ? 
+          m.content.map((c: any) => c.type === 'text' ? c.text : '').join('\n') : 
+          String(m.content)
+        ) : '';
+        
+      if (m.role === 'system') {
+        systemInstruction = textContent;
+      } else {
+        const role = m.role === 'assistant' ? 'model' : 'user';
+        // Check if previous message has the same role and combine if so
+        if (chatMessages.length > 0 && chatMessages[chatMessages.length - 1].role === role) {
+          chatMessages[chatMessages.length - 1].parts[0].text += '\n\n' + textContent;
+        } else {
+          chatMessages.push({
+            role,
+            parts: [{ text: textContent }]
+          });
+        }
+      }
+    }
+    
+    // Ensure the first message is 'user' for Gemini
+    if (chatMessages.length > 0 && chatMessages[0].role === 'model') {
+       chatMessages.unshift({ role: 'user', parts: [{ text: 'Hello' }] });
+    }
+    
+    const requestOptions: any = {
+      model: 'gemini-3.6-flash',
+      contents: chatMessages,
+    };
+    
+    if (req.body.researched) {
+      try {
+        const cheerio = await import('cheerio');
+        const lastUserMsg = chatMessages[chatMessages.length - 1]?.parts[0]?.text || '';
+        const searchHtml = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(lastUserMsg)}`).then(r => r.text());
+        const $ = cheerio.load(searchHtml);
+        let searchContext = `Web Search Results:\n`;
+        $('.result').each((i, el) => {
+          if (i >= 5) return;
+          searchContext += `- ${$(el).find('.result__title').text().trim()}: ${$(el).find('.result__snippet').text().trim()}\n`;
+        });
+        chatMessages[chatMessages.length - 1].parts[0].text += `\n\n[SYSTEM NOTE: The user requested a web search. Here are the live results. Use these to answer accurately.]\n${searchContext}`;
+      } catch (e) {
+        console.error('Web search failed:', e);
+      }
+    }
+
+    if (systemInstruction) {
+      requestOptions.config = { systemInstruction };
+    }
+    
+    const result = await ai.models.generateContent(requestOptions);
+    
+    res.json({ role: 'assistant', content: result.text || 'No response generated.' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

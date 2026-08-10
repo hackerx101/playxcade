@@ -26,6 +26,7 @@ import { PasswordResetPage } from './pages/PasswordResetPage';
 import { CloudGamingPage } from './pages/CloudGamingPage';
 import { HackedAccountPage } from './pages/HackedAccountPage';
 import { MigratingPage } from './pages/MigratingPage';
+import { AIPage } from './pages/AIPage';
 
 import { DeactivatedPage } from './pages/DeactivatedPage';
 import { SetupProfilePage } from './pages/SetupProfilePage';
@@ -67,6 +68,7 @@ export default function App() {
         <Routes>
           {/* Public Landing, Auth & Migration */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/ai" element={<AIPage />} />
           <Route path="/cloud" element={<CloudGamingPage />} />
           <Route path="/migrating" element={<MigratingPage />} />
           

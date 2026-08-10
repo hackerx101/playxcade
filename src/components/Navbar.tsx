@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Radio, Search, Settings, LogOut, User, ShieldCheck, Gamepad2, Menu, X, Sun, Moon, Bell, MessageSquare, UserPlus, Check, Wallet } from 'lucide-react';
+import { Radio, Search, Settings, LogOut, User, ShieldCheck, Gamepad2, Menu, X, Sun, Moon, Bell, MessageSquare, UserPlus, Check, Wallet, Bot } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getTranslation } from '../lib/i18n';
 
@@ -84,6 +84,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onStartStream, showLiveIcon = tr
                   {totalUnreadChatCount > 9 ? '9+' : totalUnreadChatCount}
                 </span>
               )}
+            </Link>
+            <Link to="/ai" className="hover:text-purple-600 transition flex items-center space-x-1 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold px-2.5 py-1 rounded-lg border border-purple-200" title="Scorpio AI">
+              <Bot className="w-4 h-4 text-purple-600" />
+              <span>AI</span>
             </Link>
           </div>
         )}

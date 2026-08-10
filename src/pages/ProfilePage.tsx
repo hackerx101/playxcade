@@ -18,6 +18,7 @@ export const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const { user, posts, updateProfile, followingIds } = useAuth();
   
+  const isScorpio = username?.toLowerCase() === 'scorpio';
   const isOwnProfile = !username || (user && user.username.toLowerCase() === username.toLowerCase());
 
   const isSuspended = username?.toLowerCase() === 'suspended_user' || username?.toLowerCase() === 'banned';
@@ -30,7 +31,7 @@ export const ProfilePage: React.FC = () => {
   const targetUserId = isOwnProfile ? (user?.user_id || '') : (username ? 'u_' + username : '');
 
   useEffect(() => {
-    if (!isOwnProfile && targetUserId) {
+    if (!isOwnProfile && !isScorpio && targetUserId) {
       getDoc(doc(db, 'profiles', targetUserId)).then((snap) => {
         if (snap.exists()) {
           const data = snap.data();
@@ -40,10 +41,29 @@ export const ProfilePage: React.FC = () => {
         }
       }).catch(() => {});
     }
-  }, [targetUserId, isOwnProfile]);
+  }, [targetUserId, isOwnProfile, isScorpio]);
 
   const profileUser = isOwnProfile
     ? user
+    : isScorpio
+    ? {
+        id: 'scorpio_ai',
+        user_id: 'scorpio_ai',
+        username: 'scorpio',
+        email: 'scorpio@garexcell.com',
+        bio: 'Scorpio AI Assistant on Playxcade with live web searching and community context.',
+        dob: '2026-01-01',
+        avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=scorpio',
+        IsDeleted: false,
+        account_status: 'active' as const,
+        appeal_status: 'none' as const,
+        IsIdentityVerify: true,
+        is_private: false,
+        followers_count: 0,
+        following_count: 0,
+        posts_count: 0,
+        created_at: new Date().toISOString(),
+      }
     : isSuspended || isNotFound
     ? null
     : {
@@ -186,7 +206,7 @@ export const ProfilePage: React.FC = () => {
                   alt={profileUser.username}
                   className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-white bg-slate-100"
                 />
-                {(profileUser.email?.toLowerCase().endsWith('@garexcell.com') || profileUser.username === 'garexcell') && (
+                {(profileUser.email?.toLowerCase().endsWith('@garexcell.com') || profileUser.username === 'garexcell' || profileUser.username === 'scorpio') && (
                   <div className="absolute bottom-0 right-0 bg-white rounded-full p-0.5" title="Verified Gold Badge">
                     <CheckCircle2 className="w-6 h-6 fill-amber-500 text-white stroke-[2]" />
                   </div>
@@ -201,6 +221,14 @@ export const ProfilePage: React.FC = () => {
                   >
                     Edit profile
                   </button>
+                ) : isScorpio ? (
+                  <Link
+                    to="/ai"
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm rounded-full transition shadow-md flex items-center space-x-1.5"
+                  >
+                    <Sparkles className="w-4 h-4 text-purple-200" />
+                    <span>Chat with Scorpio AI</span>
+                  </Link>
                 ) : (
                   <div className="flex items-center space-x-2">
                     <button
@@ -234,23 +262,25 @@ export const ProfilePage: React.FC = () => {
                 </p>
               )}
 
-              {/* Stats Bar */}
-              <div className="flex items-center space-x-5 pt-1">
-                <button
-                  onClick={() => navigate(`/profile/${profileUser.username}/follows?subtab=following`)}
-                  className="flex items-center space-x-1 group"
-                >
-                  <span className="text-sm font-bold text-slate-900">{displayedFollowingCount}</span>
-                  <span className="text-sm text-slate-500 group-hover:underline">Following</span>
-                </button>
-                <button
-                  onClick={() => navigate(`/profile/${profileUser.username}/follows?subtab=followers`)}
-                  className="flex items-center space-x-1 group"
-                >
-                  <span className="text-sm font-bold text-slate-900">{displayedFollowersCount}</span>
-                  <span className="text-sm text-slate-500 group-hover:underline">Followers</span>
-                </button>
-              </div>
+              {/* Stats Bar - Hidden for Scorpio AI */}
+              {!isScorpio && (
+                <div className="flex items-center space-x-5 pt-1">
+                  <button
+                    onClick={() => navigate(`/profile/${profileUser.username}/follows?subtab=following`)}
+                    className="flex items-center space-x-1 group"
+                  >
+                    <span className="text-sm font-bold text-slate-900">{displayedFollowingCount}</span>
+                    <span className="text-sm text-slate-500 group-hover:underline">Following</span>
+                  </button>
+                  <button
+                    onClick={() => navigate(`/profile/${profileUser.username}/follows?subtab=followers`)}
+                    className="flex items-center space-x-1 group"
+                  >
+                    <span className="text-sm font-bold text-slate-900">{displayedFollowersCount}</span>
+                    <span className="text-sm text-slate-500 group-hover:underline">Followers</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

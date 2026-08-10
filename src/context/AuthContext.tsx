@@ -818,7 +818,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
 
-      alert(`🚨 POST BLOCKED & STRIKE APPLIED:\n\n${modResult.userFacingMessage}\n\nStrike Status: ${newStrikes}/4 strikes.`);
+      alert(`🚨 POST BLOCKED & STRIKE APPLIED:
+
+${modResult.userFacingMessage}
+
+Strike Status: ${newStrikes}/4 strikes.`);
       return;
     }
 
@@ -861,6 +865,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).then(() => {});
 
     setPosts(prev => [newPostObj, ...prev]);
+    if (captionText.includes(`@Orion`) || captionText.includes(`@orion`)) {
+      setTimeout(async () => {
+        try {
+          const aiResponse = await fetch(`/api/ai/chat`, {
+            method: `POST`,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messages: [{
+                role: `system`,
+                content: `You are Orion, an AI assistant on Playxcade. A user has tagged you in their post. Read the post and reply based on it, telling the user what the post is about in your own words, acting as a helpful and engaging AI character. DO NOT use conversational fillers like \"Here is the information\".`
+              }, {
+                role: `user`,
+                content: `Here is my post: \"${captionText}\".`
+              }]
+            })
+          });
+          const aiData = await aiResponse.json();
+          if (aiData.content) {
+            const commentId = `comment_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+            const nowIso = new Date().toISOString();
+            const newComment = {
+              id: commentId,
+              post_id: newPostId,
+              user_id: `orion_ai`,
+              author_username: `Orion AI`,
+              author_avatar: ``,
+              author_email: `orion@garexcell.com`,
+              content: aiData.content.trim(),
+              created_at: `Just now`
+            };
+            await setDoc(doc(db, `comments`, commentId), { ...newComment, created_at: nowIso });
+            supabase.from(`comments`).insert({ id: commentId, post_id: newPostId, user_id: `orion_ai`, content: aiData.content.trim(), created_at: nowIso }).then(() => {});
+            updateDoc(doc(db, `posts`, newPostId), { comments_count: increment(1) }).catch(() => {});
+          }
+        } catch (e) {}
+      }, 1000);
+    }
     return newPostObj;
   };
 
@@ -1076,7 +1117,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const modResult = analyzeTextContent(content);
     if (modResult.action === 'REJECT_AND_STRIKE') {
-      alert(`🚨 COMMENT BLOCKED:\n\n${modResult.userFacingMessage}`);
+      alert(`🚨 COMMENT BLOCKED:
+
+${modResult.userFacingMessage}`);
       return null;
     }
 

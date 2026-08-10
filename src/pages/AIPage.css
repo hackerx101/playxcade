@@ -1,0 +1,477 @@
+.orion-ai-page {
+  --bg: #ffffff;
+  --bg-soft: #f8f9fb;
+  --sidebar: #fbfbfc;
+  --text: #1f1f1f;
+  --muted: #5f6368;
+  --primary: #7c3aed;
+  --primary-2: #9333ea;
+  --border: #e4e4e7;
+  --chip: #f1f3f4;
+  --assistant-bubble: #f7f7fb;
+  --user-bubble: #e6dcfb;
+
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Google Sans", Roboto, Arial, sans-serif;
+  display: flex;
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+}
+
+@media (prefers-color-scheme: dark) {
+  .orion-ai-page {
+    --bg: #131314;
+    --bg-soft: #1e1f20;
+    --sidebar: #1a1b1c;
+    --text: #e6e6e6;
+    --muted: #9aa0a6;
+    --primary: #c4a7f6;
+    --border: #3c4043;
+    --chip: #282a2c;
+    --assistant-bubble: #1f1f22;
+    --user-bubble: #433358;
+  }
+}
+
+.orion-ai-page * {
+  box-sizing: border-box;
+}
+
+/* ---------- Sidebar ---------- */
+.orion-ai-page .sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--bg-soft);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 10px;
+  z-index: 30;
+  transition: transform .25s ease;
+}
+
+.orion-ai-page .sidebar-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 2px; }
+
+.orion-ai-page .brand { display: flex; align-items: center; gap: 10px; background: none; border: none; color: var(--text); font: inherit; cursor: pointer; }
+
+.orion-ai-page .gem-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #9333ea, #6366f1 60%, #22d3ee);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(124,58,237,.35);
+}
+
+.orion-ai-page .gem-icon svg { width: 18px; height: 18px; }
+.orion-ai-page .brand-name { font-weight: 700; font-size: 18px; letter-spacing: .2px; }
+
+.orion-ai-page .side-close { display: none; background: none; border: none; color: var(--muted); cursor: pointer; width: 30px; height: 30px; border-radius: 8px; }
+.orion-ai-page .side-close:hover { background: var(--chip); }
+.orion-ai-page .side-close svg { width: 20px; height: 20px; }
+
+/* New chat round card */
+.orion-ai-page .new-cat-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 14px 8px 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  transition: transform .1s ease, box-shadow .1s ease;
+}
+.orion-ai-page .new-cat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.10); }
+.orion-ai-page .cat-pig {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: radial-gradient(circle at 30% 30%, var(--primary-2), var(--primary));
+  color: #fff;
+}
+.orion-ai-page .cat-pig svg { width: 17px; height: 17px; }
+
+.orion-ai-page .sidebar-label { font-size: 12px; color: var(--muted); padding: 6px 4px 0; font-weight: 600; }
+
+.orion-ai-page .chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 2px; }
+
+.orion-ai-page .chat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  overflow: hidden;
+}
+.orion-ai-page .chat-item:hover { background: var(--chip); }
+.orion-ai-page .chat-item.active { background: var(--user-bubble); }
+.orion-ai-page .chat-item .ci-ic { flex-shrink: 0; color: var(--muted); }
+.orion-ai-page .chat-item .ci-ic svg { width: 16px; height: 16px; }
+.orion-ai-page .chat-item .ci-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.orion-ai-page .chat-item .ci-del { display: none; background: none; border: none; color: var(--muted); cursor: pointer; border-radius: 6px; padding: 2px; flex-shrink: 0; }
+.orion-ai-page .chat-item:hover .ci-del { display: grid; }
+.orion-ai-page .chat-item .ci-del:hover { color: #e11d48; background: var(--chip); }
+.orion-ai-page .chat-item .ci-del svg { width: 15px; height: 15px; }
+
+.orion-ai-page .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 25; display: none; }
+
+/* ---------- Main column ---------- */
+.orion-ai-page .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.orion-ai-page .main-col { flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100vh; }
+
+.orion-ai-page .topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 15;
+  border-bottom: 1px solid transparent;
+}
+
+.orion-ai-page .burger { display: none; background: none; border: none; color: var(--text); cursor: pointer; width: 36px; height: 36px; border-radius: 10px; }
+.orion-ai-page .burger svg { width: 22px; height: 22px; }
+.orion-ai-page .burger:hover { background: var(--chip); }
+
+.orion-ai-page .model-wrap { position: relative; }
+
+.orion-ai-page .model-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 12px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+}
+.orion-ai-page .model-select:hover { background: var(--chip); }
+.orion-ai-page .model-ic { width: 17px; height: 17px; color: var(--primary); }
+.orion-ai-page .chev { width: 15px; height: 15px; color: var(--muted); }
+
+.orion-ai-page .model-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 240px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.14);
+  padding: 8px;
+  z-index: 50;
+  display: none;
+}
+.orion-ai-page .model-menu.open { display: block; }
+.orion-ai-page .model-menu-title { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 6px 10px; }
+.orion-ai-page .model-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 10px 10px;
+  border: none;
+  background: none;
+  border-radius: 9px;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+.orion-ai-page .model-option em { font-style: normal; opacity: .7; font-size: 12px; }
+.orion-ai-page .model-option:hover, .orion-ai-page .model-option.active { background: var(--chip); }
+.orion-ai-page .m-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.orion-ai-page .m-dot.f { background: #f59e0b; }
+.orion-ai-page .m-dot.s { background: #dc2626; }
+.orion-ai-page .m-dot.p { background: linear-gradient(135deg, #9333ea, #6366f1); }
+
+.orion-ai-page .chat-title-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.orion-ai-page .chat-title { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+.orion-ai-page .edit-name {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center;
+}
+.orion-ai-page .edit-name:hover { background: var(--chip); color: var(--text); }
+.orion-ai-page .edit-name svg { width: 16px; height: 16px; }
+
+.orion-ai-page .avatar-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid var(--border);
+  background: radial-gradient(circle at 30% 30%, var(--primary-2), var(--primary));
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.orion-ai-page .avatar-btn:hover { opacity: .92; }
+
+/* ---------- App ---------- */
+.orion-ai-page .app {
+  flex: 1;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.orion-ai-page .welcome {
+  width: min(820px, 100%);
+  padding: 56px 24px 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.orion-ai-page .welcome-title { font-size: clamp(30px, 5vw, 46px); font-weight: 600; margin: 0 0 12px; }
+
+.orion-ai-page .gradient-text {
+  background: linear-gradient(90deg, #9333ea, #6366f1, #22d3ee);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.orion-ai-page .welcome-sub { color: var(--muted); font-size: 15px; margin: 0 0 32px; }
+
+.orion-ai-page .chips { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+
+.orion-ai-page .chip {
+  background: var(--chip);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform .1s ease;
+  max-width: 240px;
+}
+.orion-ai-page .chip:hover { transform: translateY(-2px); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+
+.orion-ai-page .chat {
+  width: min(820px, 100%);
+  padding: 12px 24px 20px;
+  display: none;
+  flex-direction: column;
+  gap: 22px;
+}
+.orion-ai-page .chat.visible { display: flex; }
+
+.orion-ai-page .row { display: flex; gap: 14px; max-width: 100%; }
+
+.orion-ai-page .avatar { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; margin-top: 2px; }
+.orion-ai-page .avatar.user { background: radial-gradient(circle at 30% 30%, var(--primary-2), var(--primary)); color: #fff; }
+.orion-ai-page .avatar.bot { background: var(--bg-soft); color: var(--primary); border: 1px solid var(--border); }
+.orion-ai-page .avatar svg { width: 17px; height: 17px; }
+
+.orion-ai-page .bubble { flex: 1; min-width: 0; }
+.orion-ai-page .user-row { flex-direction: row-reverse; }
+.orion-ai-page .user-row .bubble {
+  background: var(--user-bubble);
+  border-radius: 18px 18px 4px 18px;
+  padding: 10px 16px;
+  font-size: 15px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 78%;
+}
+.orion-ai-page .attach-thumb { width: 180px; border-radius: 12px; border: 1px solid var(--border); display: block; max-width: 100%; }
+.orion-ai-page .attach-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); font-weight: 500; }
+.orion-ai-page .attach-tag svg { width: 14px; height: 14px; }
+.orion-ai-page .mode-pill { align-self: flex-start; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; border-radius: 999px; padding: 3px 9px; }
+.orion-ai-page .mode-pill.research { background: #dff3e7; color: #0b7a43; }
+.orion-ai-page .mode-pill.generate { background: var(--chip); color: var(--muted); }
+
+.orion-ai-page .bot-response { font-size: 15.5px; line-height: 1.6; }
+.orion-ai-page .bot-response p { margin: 0 0 12px; }
+.orion-ai-page .bot-response ul, .orion-ai-page .bot-response ol { margin: 0 0 12px; padding-left: 22px; }
+.orion-ai-page .bot-response code { background: var(--chip); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
+.orion-ai-page .bot-response pre { background: var(--bg-soft); border: 1px solid var(--border); padding: 12px; border-radius: 10px; overflow-x: auto; }
+.orion-ai-page .bot-response a { color: var(--primary); text-decoration: underline; font-weight: 600; }
+.orion-ai-page .bot-response h1, .orion-ai-page .bot-response h2, .orion-ai-page .bot-response h3 { font-size: 1.1em; margin: 14px 0 8px; }
+.orion-ai-page .bot-response hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+.orion-ai-page .bot-response img.rendered { max-width: 100%; border-radius: 12px; margin: 8px 0; }
+
+.orion-ai-page .cursor { display: inline-block; width: 8px; height: 18px; background: var(--primary); vertical-align: text-bottom; margin-left: 2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+.orion-ai-page .searchnote { color: var(--muted); font-size: 14px; width: min(820px, 100%); padding: 4px 24px 0; display: flex; align-items: center; gap: 8px; }
+.orion-ai-page .searchnote .dots::after { content: ""; animation: dots 1.2s steps(4) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+
+/* ---------- Composer ---------- */
+.orion-ai-page .composer {
+  padding: 12px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg);
+}
+.orion-ai-page .composer-box {
+  width: min(820px, 100%);
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 8px 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.08);
+}
+.orion-ai-page .composer-box:focus-within { border-color: var(--primary); }
+
+.orion-ai-page .button {
+  width: 38px; height: 38px; border: none; border-radius: 50%;
+  background: transparent; color: var(--muted); cursor: pointer;
+  display: grid; place-items: center; flex-shrink: 0;
+}
+.orion-ai-page .button:hover { background: var(--chip); color: var(--text); }
+.orion-ai-page .button svg { width: 20px; height: 20px; }
+.orion-ai-page .button.active { color: var(--primary); }
+
+.orion-ai-page textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  max-height: 160px;
+  padding: 8px 6px;
+}
+.orion-ai-page textarea::placeholder { color: var(--muted); }
+
+.orion-ai-page .send {
+  width: 40px; height: 40px; border: none; border-radius: 50%;
+  background: var(--primary); color: #fff; cursor: pointer;
+  display: grid; place-items: center; flex-shrink: 0;
+}
+.orion-ai-page .send svg { width: 20px; height: 20px; }
+.orion-ai-page .send:disabled { background: var(--border); color: var(--muted); cursor: default; }
+
+.orion-ai-page .minor-note { color: var(--muted); font-size: 12px; margin: 0; }
+
+/* ---------- Bottom sheet ---------- */
+.orion-ai-page .sheet-scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 60; }
+.orion-ai-page .sheet {
+  position: fixed;
+  left: 50%; bottom: 0;
+  transform: translateX(-50%);
+  width: min(560px, 100%);
+  background: var(--bg);
+  border-radius: 22px 22px 0 0;
+  padding: 14px 18px calc(22px + env(safe-area-inset-bottom));
+  z-index: 70;
+  box-shadow: 0 -10px 40px rgba(0,0,0,.2);
+  animation: sheetUp .28s ease;
+}
+@keyframes sheetUp { from { transform: translateX(-50%) translateY(40px); opacity: 0; } to { transform: translateX(-50%) translateY(0); opacity: 1; } }
+.orion-ai-page .sheet-handle { width: 44px; height: 5px; border-radius: 3px; background: var(--border); margin: 2px auto 14px; }
+.orion-ai-page .sheet-title { margin: 0 0 14px; font-size: 16px; font-weight: 600; text-align: center; }
+
+.orion-ai-page .sheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.orion-ai-page .sheet-action {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  background: var(--bg-soft); border: 1px solid var(--border); border-radius: 14px;
+  padding: 20px 10px; cursor: pointer; color: var(--text); font: inherit; font-size: 14px; font-weight: 500;
+}
+.orion-ai-page .sheet-action:hover { border-color: var(--primary); background: var(--chip); }
+.orion-ai-page .sa-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: radial-gradient(circle at 30% 30%, var(--primary-2), var(--primary)); color: #fff; }
+.orion-ai-page .sa-ic svg { width: 20px; height: 20px; }
+
+.orion-ai-page .sheet-label { margin: 20px 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 600; }
+
+.orion-ai-page .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.orion-ai-page .mode-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left;
+  background: var(--bg-soft); border: 1.5px solid var(--border); border-radius: 14px;
+  padding: 16px; cursor: pointer; color: var(--text); font: inherit;
+}
+.orion-ai-page .mode-card:hover, .orion-ai-page .mode-card.active { border-color: var(--primary); background: var(--chip); }
+.orion-ai-page .mc-ic { font-size: 20px; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; color: var(--primary); }
+.orion-ai-page .mc-name { font-weight: 600; font-size: 15px; }
+.orion-ai-page .mc-desc { font-size: 12px; color: var(--muted); }
+
+/* ---------- Login ---------- */
+.orion-ai-page .login-screen {
+  position: fixed; inset: 0; z-index: 100;
+  background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px;
+}
+.orion-ai-page .login-main { background: none; border: none; color: var(--text); display: flex; flex-direction: column; align-items: center; gap: 16px; cursor: default; }
+.orion-ai-page .user-avatar-lg {
+  width: 84px; height: 84px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 36px; font-weight: 700; color: #fff;
+  background: radial-gradient(circle at 30% 30%, var(--primary-2), var(--primary));
+}
+.orion-ai-page .login-card h2, .orion-ai-page .login-main h2 { margin: 0; font-size: 20px; font-weight: 600; }
+.orion-ai-page .login-btn {
+  padding: 12px 44px; border: none; border-radius: 999px;
+  background: var(--primary); color: #fff; font: inherit; font-size: 16px; font-weight: 600; cursor: not-allowed; opacity: .85;
+}
+.orion-ai-page .login-btn:hover { opacity: 1; }
+.orion-ai-page .login-go-back { color: var(--primary); font-size: 15px; cursor: pointer; margin: 0; }
+.orion-ai-page .login-go-back:hover { text-decoration: underline; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 860px) {
+  .orion-ai-page .sidebar { position: fixed; top: 0; left: 0; bottom: 0; transform: translateX(-105%); box-shadow: 6px 0 30px rgba(0,0,0,.18); border-right: none; }
+  .orion-ai-page .sidebar.open { transform: translateX(0); }
+  .orion-ai-page .side-close { display: grid; }
+  .orion-ai-page .scrim.show { display: block; }
+  .orion-ai-page .burger { display: grid; place-items: center; }
+}
+
+@media (max-width: 600px) {
+  .orion-ai-page .welcome { padding: 40px 16px 12px; }
+  .orion-ai-page .chat, .orion-ai-page .composer { padding-left: 14px; padding-right: 14px; }
+  .orion-ai-page .chat-title-wrap { justify-content: flex-end; padding-right: 4px; }
+}
