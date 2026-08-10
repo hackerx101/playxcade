@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { Settings, Edit3, CheckCircle2, MessageSquare, Image as ImageIcon, Film, FileText, Sparkles, X, Upload } from 'lucide-react';
+import { Settings, Edit3, CheckCircle2, MessageSquare, Image as ImageIcon, Film, FileText, Sparkles, X, Upload, Gift } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { BottomBar } from '../components/BottomBar';
 import { useAuth } from '../context/AuthContext';
@@ -233,9 +233,17 @@ export const ProfilePage: React.FC = () => {
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => navigate(`/chat/${profileUser.username}`)}
+                      title="Send Message"
                       className="p-1.5 bg-white hover:bg-slate-50 text-slate-900 rounded-full transition border border-slate-300"
                     >
                       <MessageSquare className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => navigate(`/gift/premium?username=${encodeURIComponent(profileUser.username)}&amount=20.99`)}
+                      title="Gift a Subscription"
+                      className="p-1.5 bg-white hover:bg-slate-50 text-indigo-600 hover:text-indigo-700 rounded-full transition border border-slate-300 flex items-center justify-center"
+                    >
+                      <Gift className="w-5 h-5" />
                     </button>
                     <FollowButton
                       targetUserId={profileUser.user_id}

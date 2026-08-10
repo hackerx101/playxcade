@@ -118,28 +118,57 @@ export const PostDetailPage: React.FC = () => {
       setCommentText('');
       setShowMentionMenu(false);
 
-      // Check if user mentioned @scorpio
-      if (/scorpio/i.test(submittedText)) {
+      // Check if user mentioned @scorpio or @orion
+      if (/scorpio/i.test(submittedText) || /orion/i.test(submittedText)) {
+        const botName = /orion/i.test(submittedText) ? 'orion' : 'scorpio';
         setScorpioQueryText(submittedText);
         setScorpioStep(1);
 
-        setTimeout(() => setScorpioStep(2), 700);
-        setTimeout(() => setScorpioStep(3), 1400);
+        const step2 = setTimeout(() => setScorpioStep(2), 700);
+        const step3 = setTimeout(() => setScorpioStep(3), 1400);
 
-        setTimeout(() => {
+        // Fetch real AI reply based on post details and the user question
+        (async () => {
+          let scorpioText = '';
+          try {
+            const apiRes = await fetch('/api/ai/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                messages: [
+                  {
+                    role: 'user',
+                    content: `You are @${botName}, the helpful AI companion on the Garexcell Social & Gaming Network. The user tagged you in a comment on a post.\n\nPost details:\n- Author: ${targetPost?.author_username || 'Anonymous'}\n- Caption/Content: "${targetPost?.caption || ''}"\n\nUser's comment tag message:\n"${submittedText}"\n\nPlease reply directly to this user. You must explain/summarize in your own words what the post is about, and answer any specific query they have in their comment. Keep your reply concise, engaging, direct, and conversational. Do not include introductory filler like "Here is the summary you requested".`
+                  }
+                ]
+              })
+            });
+            if (apiRes.ok) {
+              const resData = await apiRes.json();
+              scorpioText = resData.content;
+            } else {
+              throw new Error('API non-ok status');
+            }
+          } catch (err) {
+            console.error('Failed to generate real AI reply:', err);
+            scorpioText = generateScorpioReply(targetPost?.caption || '', submittedText);
+          }
+
+          clearTimeout(step2);
+          clearTimeout(step3);
           setScorpioStep(0);
-          const scorpioText = generateScorpioReply(targetPost?.caption || '', submittedText);
+
           const scorpioComment: Comment = {
-            id: `comment_scorpio_${Date.now()}`,
+            id: `comment_${botName}_${Date.now()}`,
             post_id: postId,
-            user_id: 'scorpio_ai',
-            author_username: 'scorpio',
-            author_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=scorpio',
+            user_id: `${botName}_ai`,
+            author_username: botName,
+            author_avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${botName}`,
             content: scorpioText,
             created_at: 'Just now'
           };
           setComments((prev) => [...prev, scorpioComment]);
-        }, 2100);
+        })();
       }
     }
     setSubmitting(false);
@@ -236,27 +265,42 @@ export const PostDetailPage: React.FC = () => {
                   </div>
                 )}
 
-                <form onSubmit={handleAddComment} className="flex items-center space-x-2">
-                  <input
-                    type="text"
-                    value={commentText}
-                    onChange={handleInputChange}
-                    placeholder="Add a comment... (Type @scorpio to ask Scorpio AI)"
-                    className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 text-slate-900"
-                  />
-                  <button
-                    type="submit"
-                    disabled={submitting || !commentText.trim()}
-                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1"
-                  >
-                    {submitting ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Send className="w-3.5 h-3.5" />
-                    )}
-                    <span className="hidden sm:inline">{submitting ? 'Posting...' : 'Reply'}</span>
-                  </button>
-                </form>
+                {user ? (
+                  <form onSubmit={handleAddComment} className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      value={commentText}
+                      onChange={handleInputChange}
+                      placeholder="Add a comment... (Type @scorpio to ask Scorpio AI)"
+                      className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 text-slate-900"
+                    />
+                    <button
+                      type="submit"
+                      disabled={submitting || !commentText.trim()}
+                      className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1"
+                    >
+                      {submitting ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                      <span className="hidden sm:inline">{submitting ? 'Posting...' : 'Reply'}</span>
+                    </button>
+                  </form>
+                ) : (
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800">Want to join the conversation?</h4>
+                      <p className="text-[10px] text-slate-500 font-medium">Log in or register to reply, tag AI bots, and like posts.</p>
+                    </div>
+                    <button
+                      onClick={() => navigate('/auth')}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition shadow-sm shrink-0"
+                    >
+                      Log In to Playxcade
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* 3-Step View Summarizing Card for Scorpio AI */}

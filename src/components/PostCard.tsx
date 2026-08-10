@@ -159,7 +159,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onCommentClick }) => {
       <div className="px-4 py-3 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-600">
         <div className="flex items-center space-x-5">
           <button
-            onClick={() => likePost(post.id)}
+            onClick={() => {
+              if (!user) {
+                alert('Please login or create an account to like posts and interact with the community.');
+                navigate('/auth');
+                return;
+              }
+              likePost(post.id);
+            }}
             className={`flex items-center space-x-1.5 transition ${
               post.is_liked ? 'text-rose-500 font-bold' : 'hover:text-rose-500'
             }`}

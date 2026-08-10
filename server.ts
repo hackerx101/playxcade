@@ -23,7 +23,7 @@ app.post('/api/send-suspension-email', async (req, res) => {
       return res.status(400).json({ error: 'Missing email or username parameters.' });
     }
 
-    const appOrigin = origin || process.env.APP_URL || 'https://play.garexcell.com.com';
+    const appOrigin = origin || process.env.APP_URL || 'https://play.garexcell.com';
     const appealUrl = `${appOrigin.replace(/\/$/, '')}/appeal`;
     const suspensionReason = reason || 'Violation of Playxcade Community Guidelines & Terms of Service.';
 
@@ -140,14 +140,36 @@ app.post('/api/gemini/summarize', async (req, res) => {
     
     // Simplistic import/usage based on user request to use @google/genai
     const { GoogleGenAI } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
     
     const prompt = `Summarize these 5 recent messages:\n\n${messages.map((m: any) => `${m.sender_username || 'User'}: ${m.text}`).join('\n')}`;
     
-    const result = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: prompt,
-    });
+    let result;
+    const modelCandidates = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-latest'];
+    let lastError: any = null;
+    for (const modelCandidate of modelCandidates) {
+      try {
+        result = await ai.models.generateContent({
+          model: modelCandidate,
+          contents: prompt,
+        });
+        break;
+      } catch (e: any) {
+        lastError = e;
+        console.warn(`Summarize model ${modelCandidate} failed: ${e.message}. Retrying next candidate...`);
+      }
+    }
+
+    if (!result) {
+      throw lastError || new Error('All model candidates failed');
+    }
     
     res.json({ summary: result.text || 'No summary generated.' });
   } catch (error: any) {
@@ -164,10 +186,17 @@ app.post('/api/ai/chat', async (req, res) => {
     }
     
     const { GoogleGenAI } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
     
     // Extract system message if present
-    let systemInstruction;
+    let systemInstruction = '';
     const chatMessages = [];
     
     for (const m of messages) {
@@ -220,11 +249,31 @@ app.post('/api/ai/chat', async (req, res) => {
       }
     }
 
-    if (systemInstruction) {
-      requestOptions.config = { systemInstruction };
-    }
+    // Incorporate the hidden strict conciseness and zero-conversational-filler instructions
+    const systemPrompt = `Strict Instruction: Answer concisely, directly, and only based on the user's inquiry. You are forbidden from using conversational filler, introductory setups, or polite preambles like "Here is the information you requested" or "Sure, I can help with that." Get straight to the point.`.trim();
+    const finalSystemInstruction = systemInstruction ? `${systemInstruction}\n\n${systemPrompt}` : systemPrompt;
     
-    const result = await ai.models.generateContent(requestOptions);
+    requestOptions.config = {
+      systemInstruction: finalSystemInstruction
+    };
+    
+    let result;
+    const modelCandidates = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-latest'];
+    let lastError: any = null;
+    for (const modelCandidate of modelCandidates) {
+      try {
+        requestOptions.model = modelCandidate;
+        result = await ai.models.generateContent(requestOptions);
+        break;
+      } catch (e: any) {
+        lastError = e;
+        console.warn(`Chat model ${modelCandidate} failed: ${e.message}. Retrying next candidate...`);
+      }
+    }
+
+    if (!result) {
+      throw lastError || new Error('All chat model candidates failed');
+    }
     
     res.json({ role: 'assistant', content: result.text || 'No response generated.' });
   } catch (error: any) {
@@ -333,6 +382,59 @@ async function startServer() {
     ws.on('close', () => {
       clients.delete(ws);
     });
+  });
+
+  // API route: Serve XML Sitemap dynamically
+  app.get('/sitemap.xml', (req, res) => {
+    res.header('Content-Type', 'application/xml');
+    const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+  <url>
+    <loc>https://play.garexcell.com/</loc>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://play.garexcell.com/feed</loc>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+    <changefreq>always</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://play.garexcell.com/foryou</loc>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+    <changefreq>always</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://play.garexcell.com/cloud</loc>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://play.garexcell.com/ai</loc>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://play.garexcell.com/explore</loc>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+    <changefreq>always</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://play.garexcell.com/tos</loc>
+    <lastmod>2026-08-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+</urlset>`;
+    res.send(sitemap);
   });
 
   if (process.env.NODE_ENV !== 'production') {

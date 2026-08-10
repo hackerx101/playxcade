@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Gamepad2, Shield, Radio, Sparkles, Users, ArrowRight, X, Play, Zap, Trophy, Database } from 'lucide-react';
+import { Gamepad2, Shield, Radio, Sparkles, Users, ArrowRight, X, Play, Zap, Trophy, Database, Download } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
 import { GeoBlockOverlay } from '../components/GeoBlockOverlay';
@@ -20,11 +20,41 @@ export const LandingPage: React.FC = () => {
   } = useAuth();
   const navigate = useNavigate();
 
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
   useEffect(() => {
     if (user) {
       navigate('/feed');
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) {
+      alert('To install Playxcade, open your browser menu and select "Add to Home Screen" or "Install App".');
+      return;
+    }
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsInstallable(false);
+    }
+    setDeferredPrompt(null);
+  };
 
   const [promptRemoveEmail, setPromptRemoveEmail] = useState<string | null>(null);
 
@@ -70,6 +100,13 @@ export const LandingPage: React.FC = () => {
                 <span>Enter Social Feed</span>
                 <ArrowRight className="w-5 h-5" />
               </Link>
+              <button
+                onClick={handleInstallClick}
+                className="w-full sm:w-auto px-8 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transition flex items-center justify-center space-x-2 text-base border border-slate-800 cursor-pointer"
+              >
+                <Download className="w-5 h-5 text-indigo-400" />
+                <span>Install Playxcade (PWA)</span>
+              </button>
             </div>
           </div>
         </section>

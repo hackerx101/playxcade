@@ -232,6 +232,9 @@ export const CallScreen: React.FC<CallScreenProps> = ({
     // Start user camera & mic
     const initCall = async () => {
       try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Your browser does not support camera/microphone access, or you are in an insecure HTTP or sandboxed context.');
+        }
         const stream = await navigator.mediaDevices.getUserMedia({
           video: type === 'video' ? { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } } : false,
           audio: true,

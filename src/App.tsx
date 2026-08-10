@@ -228,6 +228,22 @@ export default function App() {
             }
           />
           <Route
+            path="/gift/:plan"
+            element={
+              <ProtectedRoute>
+                <CheckoutPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/gift"
+            element={
+              <ProtectedRoute>
+                <CheckoutPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/post/:postId"
             element={
               <ProtectedRoute>

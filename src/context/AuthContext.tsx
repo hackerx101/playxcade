@@ -1033,6 +1033,8 @@ Strike Status: ${newStrikes}/4 strikes.`);
     if (updates.avatar_url) dbUpdates.avatar_url = updates.avatar_url;
     if (updates.is_2fa_enabled !== undefined) dbUpdates.is_2fa_enabled = updates.is_2fa_enabled;
     if (updates.totp_secret !== undefined) dbUpdates.totp_secret = updates.totp_secret;
+    if (updates.subscription_plan !== undefined) dbUpdates.subscription_plan = updates.subscription_plan;
+    if (updates.is_upgraded !== undefined) dbUpdates.is_upgraded = updates.is_upgraded;
 
     await updateDoc(doc(db, 'profiles', user.user_id), dbUpdates);
     supabase.from('profiles').update(dbUpdates).eq('user_id', user.user_id).then(() => {});
@@ -1422,7 +1424,7 @@ ${modResult.userFacingMessage}`);
       return;
     }
 
-    const isUpgraded = user?.is_upgraded === true || user?.subscription_plan === 'pro' || user?.subscription_plan === 'premium';
+    const isUpgraded = user?.is_upgraded === true || (user?.subscription_plan && user.subscription_plan !== 'none');
     const isCallMsg = text.trim().startsWith('[CALL_STARTED:');
 
     // Message limit check for free tier

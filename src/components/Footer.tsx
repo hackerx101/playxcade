@@ -32,6 +32,7 @@ export const Footer: React.FC = () => {
           <ul className="space-y-2 text-sm text-slate-400">
             <li><Link to="/feed" className="hover:text-white transition">Social Feed</Link></li>
             <li><Link to="/tos" className="hover:text-white transition">Terms of Service</Link></li>
+            <li><a href="/sitemap.xml" target="_blank" className="hover:text-white transition">Sitemap</a></li>
           </ul>
         </div>
 

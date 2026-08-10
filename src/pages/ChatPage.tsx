@@ -103,10 +103,11 @@ export const ChatPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, selectedRoom]);
 
+  const activeChat = chats.find(c => c.id === selectedRoom);
   const activeChannel = channels.find(c => c.id === selectedRoom) || {
     id: selectedRoom,
-    name: selectedRoom === 'world-chat' ? 'World Chat' : selectedRoom,
-    desc: selectedRoom === 'world-chat' ? 'Global community chat for all members' : 'Chat room',
+    name: activeChat ? `@${activeChat.participant_username}` : (selectedRoom === 'world-chat' ? 'World Chat' : selectedRoom),
+    desc: activeChat ? `Direct Message with ${activeChat.participant_username}` : (selectedRoom === 'world-chat' ? 'Global community chat for all members' : 'Chat room'),
     type: selectedRoom.includes('voice') || selectedRoom === 'lounge' || selectedRoom === 'squad' ? 'voice' : 'text'
   };
 
@@ -945,7 +946,17 @@ export const ChatPage: React.FC = () => {
                   
                   {!inputText.trim() ? (
                     <div className="flex items-center space-x-1 pr-2">
-                      <button type="button" className="p-2 text-slate-400 hover:text-slate-300 transition" title="Gift"><Gift className="w-5 h-5" /></button>
+                      <button
+                        type="button"
+                        className="p-2 text-slate-400 hover:text-slate-300 transition"
+                        title="Gift"
+                        onClick={() => {
+                          const targetUser = activeChat ? activeChat.participant_username : '';
+                          navigate(`/gift/premium?username=${encodeURIComponent(targetUser)}&amount=20.99`);
+                        }}
+                      >
+                        <Gift className="w-5 h-5" />
+                      </button>
                       <button type="button" className="p-2 text-slate-400 hover:text-slate-300 transition" title="AI Summary" onClick={async () => {
                         const recentMessages = filteredMessages.slice(-5);
                         try {
