@@ -6,12 +6,13 @@ Allow: /
 Allow: /tos
 Allow: /cloud
 Allow: /leaderboard
+Allow: /ai
 Allow: /setup
 
 # Disallow crawling of temporary game rooms, private lobbies, or admin backend
 Disallow: /room/
 Disallow: /api/
-Disallow: /ai/
+Disallow: /auth/sso
 Disallow: /auth/
 
 # Point search engines directly to your sitemap
