@@ -21,6 +21,7 @@ import { SuspendedPage } from './pages/SuspendedPage';
 import { AppealPage } from './pages/AppealPage';
 import { IdentityVerifyPage } from './pages/IdentityVerifyPage';
 import { TOSPage } from './pages/TOSPage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { AuthVerifyPage } from './pages/AuthVerifyPage';
 import { PasswordResetPage } from './pages/PasswordResetPage';
 import { CloudGamingPage } from './pages/CloudGamingPage';
@@ -33,6 +34,7 @@ import { SetupProfilePage } from './pages/SetupProfilePage';
 import { GeoBlockOverlay } from './components/GeoBlockOverlay';
 import { GlobalCallManager } from './components/GlobalCallManager';
 import { OfflineScreen } from './components/OfflineScreen';
+import { TakedownWarningOverlay } from './components/TakedownWarningOverlay';
 
 // Protected route wrapper that checks if user is logged in and not suspended, deactivated, or migrating
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -64,6 +66,7 @@ export default function App() {
       <GeoBlockOverlay />
       <GlobalCallManager />
       <OfflineScreen />
+      <TakedownWarningOverlay />
       <BrowserRouter>
         <Routes>
           {/* Public Landing, Auth & Migration */}
@@ -89,6 +92,7 @@ export default function App() {
           <Route path="/sso" element={<SSOPage />} />
           
           <Route path="/tos" element={<TOSPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
 
           {/* Social Network Routes */}
           <Route
@@ -197,6 +201,14 @@ export default function App() {
           />
           <Route
             path="/report/:postId"
+            element={
+              <ProtectedRoute>
+                <ReportPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reports/:reportId"
             element={
               <ProtectedRoute>
                 <ReportPage />

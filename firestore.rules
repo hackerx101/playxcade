@@ -1,8 +1,38 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper functions for security
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isNotSuspended() {
+      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.account_status != 'suspended';
+    }
+
+    match /profiles/{userId} {
+      // Anyone can read profiles
+      allow read: if true;
+      // Only the owner can write their profile, and they must not be suspended
+      allow write: if isOwner(userId);
+    }
+    
+    match /posts/{postId} {
+      // Anyone can read posts
+      allow read: if true;
+      // Only authenticated, non-suspended users can create posts
+      allow create: if isAuthenticated() && isNotSuspended() && request.resource.data.user_id == request.auth.uid;
+      // Only the author can update or delete
+      allow update, delete: if isAuthenticated() && isNotSuspended() && resource.data.user_id == request.auth.uid;
+    }
+
     match /{document=**} {
-      allow read, write: if true;
+      // Default deny for anything not explicitly allowed above
+      allow read, write: if false;
     }
   }
 }

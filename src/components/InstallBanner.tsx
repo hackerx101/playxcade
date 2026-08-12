@@ -55,7 +55,7 @@ export const InstallBanner: React.FC = () => {
           <Sparkles className="w-5 h-5 text-indigo-300" />
         </div>
         <div>
-          <h4 className="text-xs font-bold tracking-tight">Install Playxcade App</h4>
+          <h4 className="text-xs font-bold tracking-tight">Install App</h4>
           <p className="text-[11px] text-indigo-200">Get lightning-fast access, instant notifications, and offline support.</p>
         </div>
       </div>

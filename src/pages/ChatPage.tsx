@@ -67,9 +67,9 @@ export const ChatPage: React.FC = () => {
       const roomExists = channels.find(c => c.id === roomParam);
       setSelectedRoom(roomExists ? roomExists.id : roomParam);
     } else {
-      navigate('/chat/world-chat', { replace: true });
+      setSelectedRoom('');
     }
-  }, [roomParam, navigate, channels]);
+  }, [roomParam, channels]);
 
   const targetChatId = (() => {
     if (selectedRoom.startsWith('dm_')) {
@@ -316,17 +316,96 @@ export const ChatPage: React.FC = () => {
       )}
 
       {/* Main Container */}
-      <main className="flex-1 w-full max-w-[1600px] mx-auto flex flex-col md:flex-row relative overflow-hidden pb-[60px] sm:pb-0">
-        {/* Mobile Sidebar Overlay */}
-        {showMobileSidebar && (
-          <div 
-            className="fixed inset-0 z-40 bg-black/60 md:hidden backdrop-blur-sm"
-            onClick={() => setShowMobileSidebar(false)}
-          />
-        )}
+      <main className="flex-1 w-full max-w-[1600px] mx-auto flex flex-col md:flex-row relative overflow-hidden pb-[60px] sm:pb-0 bg-white">
+        
+        {!selectedRoom ? (
+          <div className="flex-1 w-full bg-white overflow-y-auto flex flex-col">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+              <h1 className="text-xl font-black text-slate-900 tracking-tight">Chats</h1>
+              <button 
+                onClick={() => navigate('/chat/world-chat')} 
+                className="p-2 text-slate-900 hover:bg-slate-100 rounded-full transition"
+              >
+                <Search className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto">
+              {/* World Chat Pinned */}
+              <button
+                onClick={() => navigate('/chat/world-chat')}
+                className="w-full flex items-center p-4 hover:bg-slate-50 transition border-b border-slate-50 text-left"
+              >
+                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white shrink-0 mr-4 shadow-sm">
+                  <Globe className="w-6 h-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <span className="font-bold text-slate-900 text-base">World Chat</span>
+                    <span className="text-xs text-slate-400 font-medium">Pin</span>
+                  </div>
+                  <p className="text-sm text-slate-500 truncate">Join the global community</p>
+                </div>
+              </button>
 
-        {/* Sidebar - Direct Messages & Participants */}
-        <div className={`fixed inset-y-0 left-0 z-50 md:relative w-[280px] md:w-64 lg:w-72 bg-slate-950 border-r border-slate-800 flex flex-col shrink-0 h-full transition-transform transform ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+              {/* DMs List */}
+              {chats.length > 0 ? chats.map(chat => {
+                const unreadCount = (unreadCountsBySender && (unreadCountsBySender[chat.participant_id] || unreadCountsBySender[chat.id])) || 0;
+                return (
+                  <button
+                    key={chat.id}
+                    onClick={() => {
+                      markChatAsRead(chat.participant_id || chat.id);
+                      navigate(`/chat/${chat.id}`);
+                    }}
+                    className="w-full flex items-center p-4 hover:bg-slate-50 transition border-b border-slate-50 text-left"
+                  >
+                    <div className="relative mr-4 shrink-0">
+                      <img src={chat.participant_avatar} className="w-14 h-14 rounded-full object-cover shadow-sm border border-slate-100" alt={chat.participant_username} />
+                      {onlineUsers[chat.participant_id] === 'online' && (
+                        <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white"></div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-baseline mb-1">
+                        <span className={`text-base truncate ${unreadCount > 0 ? 'font-black text-slate-900' : 'font-bold text-slate-900'}`}>
+                          {chat.participant_username}
+                        </span>
+                        <span className={`text-xs ${unreadCount > 0 ? 'text-indigo-600 font-bold' : 'text-slate-400 font-medium'}`}>
+                          {chat.updated_at ? new Date(chat.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <p className={`text-sm truncate mr-2 ${unreadCount > 0 ? 'font-bold text-slate-900' : 'text-slate-500 font-medium'}`}>
+                          {chat.last_message || 'Start chatting...'}
+                        </p>
+                        {unreadCount > 0 && (
+                          <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full shrink-0"></div>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              }) : (
+                <div className="p-8 text-center text-slate-500 text-sm">
+                  No recent chats. Head to World Chat to meet people!
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Mobile Sidebar Overlay */}
+            {showMobileSidebar && (
+              <div 
+                className="fixed inset-0 z-40 bg-black/60 md:hidden backdrop-blur-sm"
+                onClick={() => setShowMobileSidebar(false)}
+              />
+            )}
+
+            {/* Sidebar - Direct Messages & Participants */}
+            <div className={`fixed inset-y-0 left-0 z-50 md:relative w-[280px] md:w-64 lg:w-72 bg-slate-950 border-r border-slate-800 flex flex-col shrink-0 h-full transition-transform transform ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+
           
           {/* Search bar at top of chat participant list */}
           <div className="p-3 border-b border-slate-800 bg-slate-950 space-y-2">
@@ -588,45 +667,45 @@ export const ChatPage: React.FC = () => {
         </div>
 
         {/* Chat Area */}
-        <div className="flex-1 bg-slate-900 flex flex-col relative h-full min-w-0">
+        <div className="flex-1 bg-white flex flex-col relative h-full min-w-0">
           
           {/* Header */}
-          <div className="px-4 py-3 border-b border-slate-800 bg-slate-950 flex flex-col shadow-sm z-10 shrink-0">
+          <div className="px-4 py-3 border-b border-slate-100 bg-white flex flex-col shadow-sm z-10 shrink-0">
             <div className="flex items-center justify-between min-w-0">
               <div className="flex items-center space-x-3 min-w-0">
                 <div className="md:hidden">
-                  <button onClick={() => setShowMobileSidebar(true)} className="p-2 -ml-2 text-slate-400 hover:text-white">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                  <button onClick={() => navigate('/chat')} className="p-2 -ml-2 text-slate-500 hover:text-slate-900 transition">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"/></svg>
                   </button>
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-base text-white flex items-center space-x-1.5">
-                    {activeChannel.type === 'voice' ? <Phone className="w-5 h-5 text-emerald-400" /> : <Hash className="w-5 h-5 text-indigo-400" />}
+                  <h3 className="font-black text-base text-slate-900 flex items-center space-x-1.5">
+                    {activeChannel.type === 'voice' ? <Phone className="w-5 h-5 text-emerald-500" /> : <Hash className="w-5 h-5 text-indigo-500" />}
                     <span>{activeChannel.name}</span>
                   </h3>
-                  <p className="text-xs text-slate-400 truncate">{activeChannel.desc}</p>
+                  <p className="text-xs text-slate-500 font-medium truncate">{activeChannel.desc}</p>
                 </div>
               </div>
 
               <div className="flex items-center space-x-1 sm:space-x-2">
                 <button
                   onClick={() => setShowSearch(!showSearch)}
-                  className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition flex items-center space-x-2"
+                  className="p-2 sm:px-3 sm:py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg transition flex items-center space-x-2"
                   title="Search Messages"
                 >
                   <Search className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => startCall('voice')}
-                  className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition flex items-center space-x-2"
+                  className="p-2 sm:px-3 sm:py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg transition flex items-center space-x-2"
                   title="Voice Call"
                 >
-                  <Phone className="w-4 h-4 text-emerald-400" />
+                  <Phone className="w-4 h-4 text-emerald-500" />
                   <span className="hidden sm:inline text-xs font-bold">Voice Call</span>
                 </button>
                 <button
                   onClick={() => startCall('video')}
-                  className="p-2 sm:px-3 sm:py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center space-x-2"
+                  className="p-2 sm:px-3 sm:py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center space-x-2 shadow-sm"
                   title="Video Call"
                 >
                   <Video className="w-4 h-4" />
@@ -634,7 +713,7 @@ export const ChatPage: React.FC = () => {
                 </button>
                 <button
                   onClick={() => navigate(`/channel/${selectedRoom}/settings`)}
-                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition"
+                  className="p-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg transition"
                   title="Channel Settings"
                 >
                   <Settings className="w-4 h-4" />
@@ -651,7 +730,7 @@ export const ChatPage: React.FC = () => {
                   placeholder="Search by keyword, sender, or timestamp..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder-slate-500 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-4 py-2 text-sm text-slate-900 placeholder-slate-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition font-medium"
                 />
               </div>
             )}
@@ -695,11 +774,11 @@ export const ChatPage: React.FC = () => {
             ) : (
                 <>
                     <div className="pb-8 pt-4">
-                      <div className="w-16 h-16 rounded-full bg-indigo-500/20 flex items-center justify-center mb-4">
-                        <Hash className="w-8 h-8 text-indigo-400" />
+                      <div className="w-16 h-16 rounded-full bg-indigo-50 flex items-center justify-center mb-4 border border-indigo-100 shadow-sm">
+                        <Hash className="w-8 h-8 text-indigo-500" />
                       </div>
-                      <h2 className="text-3xl font-extrabold text-white mb-2">Welcome to #{activeChannel.name}!</h2>
-                      <p className="text-slate-400">{activeChannel.desc}</p>
+                      <h2 className="text-3xl font-black text-slate-900 mb-2">Welcome to #{activeChannel.name}!</h2>
+                      <p className="text-slate-500 font-medium">{activeChannel.desc}</p>
                     </div>
 
                     {filteredMessages.map((msg, i) => {
@@ -713,9 +792,9 @@ export const ChatPage: React.FC = () => {
                         const callType = msg.text.includes('video') ? 'video' : 'voice';
                         return (
                           <div key={msg.id} className="flex justify-center my-4">
-                            <div className="bg-slate-800/80 border border-slate-700/50 rounded-full px-4 py-1.5 flex items-center space-x-2 text-xs text-slate-300">
-                              {callType === 'video' ? <Video className="w-3.5 h-3.5 text-indigo-400" /> : <Phone className="w-3.5 h-3.5 text-emerald-400" />}
-                              <span><strong className="text-slate-100">{msg.sender_username || 'Someone'}</strong> started a {callType} call.</span>
+                            <div className="bg-slate-50 border border-slate-200 rounded-full px-4 py-1.5 flex items-center space-x-2 text-xs text-slate-500">
+                              {callType === 'video' ? <Video className="w-3.5 h-3.5 text-indigo-500" /> : <Phone className="w-3.5 h-3.5 text-emerald-500" />}
+                              <span><strong className="text-slate-900">{msg.sender_username || 'Someone'}</strong> started a {callType} call.</span>
                             </div>
                           </div>
                         );
@@ -726,7 +805,7 @@ export const ChatPage: React.FC = () => {
                           {!isMine && (
                             <img 
                               src={msg.sender_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${msg.sender_id}`} 
-                              className="w-8 h-8 rounded-full object-cover shrink-0 mb-1 border border-slate-800"
+                              className="w-8 h-8 rounded-full object-cover shrink-0 mb-1 border border-slate-100 shadow-sm"
                               alt={msg.sender_username || 'User'}
                             />
                           )}
@@ -737,7 +816,7 @@ export const ChatPage: React.FC = () => {
                               <div className={`flex items-baseline space-x-2 mb-1 relative ${isMine ? 'flex-row-reverse space-x-reverse' : ''}`}>
                                 <Link 
                                   to={`/profile/${msg.sender_username || msg.sender_id}`}
-                                  className={`text-xs font-bold flex items-center space-x-1 ${isMine ? 'text-indigo-400' : 'text-slate-300 hover:underline'}`}
+                                  className={`text-xs font-bold flex items-center space-x-1 ${isMine ? 'text-indigo-600' : 'text-slate-900 hover:underline'}`}
                                 >
                                   <span>{isMine ? (user?.username ? `@${user.username}` : 'You') : `@${msg.sender_username || msg.sender_id || 'User'}`}</span>
                                   {((isMine && user?.email?.toLowerCase().endsWith('@garexcell.com')) || 
@@ -746,7 +825,7 @@ export const ChatPage: React.FC = () => {
                                     <CheckCircle2 className="w-3 h-3 fill-amber-500 text-white stroke-[2]" title="Verified Gold Badge" />
                                   )}
                                 </Link>
-                                <span className="text-[10px] text-slate-500">
+                                <span className="text-[10px] text-slate-400 font-medium">
                                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                               </div>
@@ -769,7 +848,7 @@ export const ChatPage: React.FC = () => {
                                   className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed relative cursor-pointer ${
                                     isMine 
                                       ? 'bg-indigo-600 text-white rounded-tr-sm shadow-md' 
-                                      : 'bg-slate-800 border border-slate-700/60 text-slate-100 rounded-tl-sm shadow-sm'
+                                      : 'bg-slate-50 border border-slate-100 text-slate-900 rounded-tl-sm shadow-sm'
                                   }`}
                                 >
                                   {replySnippet && (
@@ -783,68 +862,73 @@ export const ChatPage: React.FC = () => {
                                   
                                   {/* Message Options Menu */}
                                   {showOptionsId === msg.id && (
-                                    <div className={`absolute top-full mt-1 ${isMine ? 'right-0' : 'left-0'} w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-30 py-1 overflow-hidden`}>
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); setShowOptionsId(null); }}
-                                        className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
-                                      >
-                                        <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
-                                        <span>Reply</span>
-                                      </button>
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(displayText); setShowOptionsId(null); }}
-                                        className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
-                                      >
-                                        <Globe className="w-3.5 h-3.5 text-slate-400" />
-                                        <span>Copy Text</span>
-                                      </button>
-                                      
-                                      {!isMine && (
-                                        <>
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); navigate(`/report/${msg.id}`); setShowOptionsId(null); }}
-                                            className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
-                                          >
-                                            <Shield className="w-3.5 h-3.5 text-orange-400" />
-                                            <span>Report</span>
-                                          </button>
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); setUserToBlock({id: msg.sender_id || '', username: msg.sender_username || 'Unknown'}); setBlockModalOpen(true); setShowOptionsId(null); }}
-                                            className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
-                                          >
-                                            <Ban className="w-3.5 h-3.5 text-rose-400" />
-                                            <span>Block User</span>
-                                          </button>
-                                        </>
-                                      )}
+                                    <>
+                                      <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowOptionsId(null); }}></div>
+                                      <div className={`absolute top-full mt-2 ${isMine ? 'right-0 origin-top-right' : 'left-0 origin-top-left'} w-56 bg-white border border-slate-100 rounded-2xl shadow-2xl z-50 py-2 animate-fade-in`}>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); setShowOptionsId(null); }}
+                                          className="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 text-slate-900 font-bold flex items-center space-x-3 transition"
+                                        >
+                                          <MessageSquare className="w-4 h-4 text-indigo-500" />
+                                          <span>Reply</span>
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(displayText); setShowOptionsId(null); }}
+                                          className="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 text-slate-900 font-bold flex items-center space-x-3 transition"
+                                        >
+                                          <Globe className="w-4 h-4 text-slate-500" />
+                                          <span>Copy Text</span>
+                                        </button>
+                                        
+                                        {!isMine && (
+                                          <>
+                                            <div className="h-px bg-slate-100 my-1 mx-4"></div>
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); navigate(`/report/${msg.id}`); setShowOptionsId(null); }}
+                                              className="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 text-amber-600 font-bold flex items-center space-x-3 transition"
+                                            >
+                                              <Shield className="w-4 h-4 text-amber-500" />
+                                              <span>Report</span>
+                                            </button>
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); setUserToBlock({id: msg.sender_id || '', username: msg.sender_username || 'Unknown'}); setBlockModalOpen(true); setShowOptionsId(null); }}
+                                              className="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 text-rose-600 font-bold flex items-center space-x-3 transition"
+                                            >
+                                              <Ban className="w-4 h-4 text-rose-500" />
+                                              <span>Block User</span>
+                                            </button>
+                                          </>
+                                        )}
 
-                                      {isMine && (
-                                        <>
-                                          <button
-                                            onClick={(e) => { 
-                                              e.stopPropagation(); 
-                                              const newText = prompt("Edit your message:", displayText); 
-                                              if (newText !== null && newText !== displayText) {
-                                                const textToSend = replySnippet ? `[REPLY_TO:${replySnippet.username}|${replySnippet.text}]\n${newText}` : newText;
-                                                editMessage(msg.id, textToSend, targetChatId); 
-                                              }
-                                              setShowOptionsId(null); 
-                                            }}
-                                            className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
-                                          >
-                                            <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
-                                            <span>Edit</span>
-                                          </button>
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); deleteMessage(msg.id, targetChatId); setShowOptionsId(null); }}
-                                            className="w-full text-left px-4 py-2 text-xs hover:bg-slate-700 text-slate-200 flex items-center space-x-2"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                                            <span>Delete</span>
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
+                                        {isMine && (
+                                          <>
+                                            <div className="h-px bg-slate-100 my-1 mx-4"></div>
+                                            <button
+                                              onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                const newText = prompt("Edit your message:", displayText); 
+                                                if (newText !== null && newText !== displayText) {
+                                                  const textToSend = replySnippet ? `[REPLY_TO:${replySnippet.username}|${replySnippet.text}]\n${newText}` : newText;
+                                                  editMessage(msg.id, textToSend, targetChatId); 
+                                                }
+                                                setShowOptionsId(null); 
+                                              }}
+                                              className="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 text-slate-900 font-bold flex items-center space-x-3 transition"
+                                            >
+                                              <MessageSquare className="w-4 h-4 text-indigo-500" />
+                                              <span>Edit</span>
+                                            </button>
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); deleteMessage(msg.id, targetChatId); setShowOptionsId(null); }}
+                                              className="w-full text-left px-4 py-3 text-sm hover:bg-slate-50 text-rose-600 font-bold flex items-center space-x-3 transition"
+                                            >
+                                              <Trash2 className="w-4 h-4 text-rose-500" />
+                                              <span>Delete</span>
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </>
                                   )}
                                 </div>
                               );
@@ -903,28 +987,28 @@ export const ChatPage: React.FC = () => {
 
           {/* Input Area */}
           {activeChannel.type !== 'voice' && (
-            <div className="p-4 bg-slate-900 shrink-0">
+            <div className="p-4 bg-white border-t border-slate-100 shrink-0">
               {replyingTo && (
-                <div className="mb-2 bg-slate-800 rounded-lg p-3 flex items-center justify-between border-l-4 border-indigo-500">
+                <div className="mb-2 bg-slate-50 rounded-lg p-3 flex items-center justify-between border-l-4 border-indigo-500">
                   <div className="flex-1 overflow-hidden">
-                    <p className="text-xs font-bold text-indigo-400 mb-1">Replying to @{replyingTo.sender_username || 'User'}</p>
-                    <p className="text-sm text-slate-300 truncate">{replyingTo.text.replace(/^\[REPLY_TO:.*?\|.*?\]\n/g, '')}</p>
+                    <p className="text-xs font-bold text-indigo-600 mb-1">Replying to @{replyingTo.sender_username || 'User'}</p>
+                    <p className="text-sm text-slate-600 truncate">{replyingTo.text.replace(/^\[REPLY_TO:.*?\|.*?\]\n/g, '')}</p>
                   </div>
                   <button 
                     onClick={() => setReplyingTo(null)}
-                    className="p-2 text-slate-400 hover:text-white transition rounded-full hover:bg-slate-700"
+                    className="p-2 text-slate-400 hover:text-slate-600 transition rounded-full hover:bg-slate-200"
                   >
                     ✕
                   </button>
                 </div>
               )}
               <form onSubmit={handleSend} className="relative">
-                <div className="flex items-center bg-slate-800 rounded-xl border border-slate-700 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all overflow-hidden pr-2">
+                <div className="flex items-center bg-slate-50 rounded-xl border border-slate-200 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all overflow-hidden pr-2">
                   
                   <button
                     type="button"
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className={`p-3 transition ${showEmojiPicker ? 'text-indigo-400' : 'text-slate-400 hover:text-slate-300'}`}
+                    className={`p-3 transition ${showEmojiPicker ? 'text-indigo-500' : 'text-slate-400 hover:text-slate-600'}`}
                   >
                     <Smile className="w-5 h-5" />
                   </button>
@@ -940,7 +1024,7 @@ export const ChatPage: React.FC = () => {
                       }
                     }}
                     placeholder={`Message #${activeChannel.name}...`}
-                    className="flex-1 py-3.5 bg-transparent border-none focus:ring-0 text-sm text-slate-100 outline-none placeholder-slate-500"
+                    className="flex-1 py-3.5 bg-transparent border-none focus:ring-0 text-sm text-slate-900 outline-none placeholder-slate-400"
                     autoFocus
                   />
                   
@@ -948,7 +1032,7 @@ export const ChatPage: React.FC = () => {
                     <div className="flex items-center space-x-1 pr-2">
                       <button
                         type="button"
-                        className="p-2 text-slate-400 hover:text-slate-300 transition"
+                        className="p-2 text-slate-400 hover:text-slate-600 transition"
                         title="Gift"
                         onClick={() => {
                           const targetUser = activeChat ? activeChat.participant_username : '';
@@ -957,7 +1041,7 @@ export const ChatPage: React.FC = () => {
                       >
                         <Gift className="w-5 h-5" />
                       </button>
-                      <button type="button" className="p-2 text-slate-400 hover:text-slate-300 transition" title="AI Summary" onClick={async () => {
+                      <button type="button" className="p-2 text-slate-400 hover:text-slate-600 transition" title="AI Summary" onClick={async () => {
                         const recentMessages = filteredMessages.slice(-5);
                         try {
                           const res = await fetch('/api/gemini/summarize', {
@@ -971,13 +1055,13 @@ export const ChatPage: React.FC = () => {
                           alert('AI Summary ready: Conversation covers recent community activity.');
                         }
                       }}><Sparkles className="w-5 h-5" /></button>
-                      <button type="button" className="p-2 text-slate-400 hover:text-slate-300 transition" title="Magic Wand"><Wand2 className="w-5 h-5" /></button>
-                      <button type="button" className="p-2 text-slate-400 hover:text-slate-300 transition" title="Voice Note"><Mic className="w-5 h-5" /></button>
+                      <button type="button" className="p-2 text-slate-400 hover:text-slate-600 transition" title="Magic Wand"><Wand2 className="w-5 h-5" /></button>
+                      <button type="button" className="p-2 text-slate-400 hover:text-slate-600 transition" title="Voice Note"><Mic className="w-5 h-5" /></button>
                     </div>
                   ) : (
                     <button
                       type="submit"
-                      className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition ml-2 mr-2 shrink-0 flex items-center justify-center"
+                      className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition ml-2 mr-2 shrink-0 flex items-center justify-center shadow-sm"
                     >
                       <Send className="w-4 h-4" />
                     </button>
@@ -987,6 +1071,8 @@ export const ChatPage: React.FC = () => {
             </div>
           )}
         </div>
+        </>
+        )}
       </main>
 
       {/* Create Channel Modal */}

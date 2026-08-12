@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, Search, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { BottomBar } from '../components/BottomBar';
 import './AIPage.css';
 
 export const AIPage: React.FC = () => {
@@ -17,34 +18,6 @@ export const AIPage: React.FC = () => {
     // Use a scoped selector instead of document.getElementById so it only affects this component
     const $ = (id: string) => containerRef.current!.querySelector(`#${id}`) as HTMLElement;
 
-    // We shim the websim API to hit our backend or just use a mock locally as requested (doesn't use a server)
-    const websim = {
-      chat: {
-        completions: {
-          create: async (req: any) => {
-            try {
-              const response = await fetch('/api/ai/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(req)
-              });
-              
-              if (!response.ok) {
-                console.error("AI chat failed", await response.text());
-                return { role: 'assistant', content: 'Sorry, the AI service is currently unavailable.' };
-              }
-              
-              return await response.json();
-            } catch (err) {
-              console.error("AI chat error", err);
-              return { role: 'assistant', content: 'Sorry, there was an error communicating with the AI service.' };
-            }
-          }
-        }
-      }
-    };
-
-    // ------------- START OF USER UPLOADED JS (Adapted for React container) -------------
     const chatEl = $("chat");
     const welcome = $("welcome");
     const form = $("composer") as HTMLFormElement;
@@ -171,7 +144,8 @@ GUARDRAIL POLICY INSTRUCTION:
 
       let sys =
         "You are Orion, a warm, helpful, supportive, and deeply knowledgeable AI assistant created by the Garexcell team. " +
-        "You MUST answer concisely, directly, and only based on the user's inquiry. You are STRICTLY FORBIDDEN from using conversational filler such as 'Here is the information you requested', 'Here is the answer', or similar phrases. " +
+        "Keep your answers concise, around 50 to 100 words maximum by default, unless the user explicitly requests a longer response, asks for an essay, or gives specific length instructions. " +
+        "You MUST answer directly and only based on the user's inquiry. You are STRICTLY FORBIDDEN from using conversational filler such as 'Here is the information you requested'. " +
         "When asked who created you, state clearly that you were created by the Garexcell team. " +
         "When asked what products Garexcell owns, list istartu.com, tv.istartu.com, and play.garexcell.com. " +
         DATA + "\n" +
@@ -299,24 +273,144 @@ GUARDRAIL POLICY INSTRUCTION:
     }
 
     function renderMessages() {
+      let needsSave = false;
       const c = getChat();
       if (!c) return;
-      chatEl.innerHTML = "";
+
+      // Handle in-progress images
       c.messages.forEach((m: any) => {
+        if (m.type === "image_generating") {
+          const elapsed = Date.now() - (m.startTime || Date.now());
+          if (elapsed >= 60000) {
+             m.type = "image_result";
+             m.url = `https://image.pollinations.ai/prompt/${encodeURIComponent(m.prompt)}?nologo=true&seed=${Math.random()}`;
+             needsSave = true;
+          } else {
+             setTimeout(() => {
+                const chat = getChat();
+                const curM = chat?.messages.find((x:any) => x.id === m.id);
+                if (curM && curM.type === "image_generating") {
+                   curM.type = "image_result";
+                   curM.url = `https://image.pollinations.ai/prompt/${encodeURIComponent(curM.prompt)}?nologo=true&seed=${Math.random()}`;
+                   saveChat(); renderMessages();
+                }
+             }, 60000 - elapsed);
+          }
+        }
+      });
+      if (needsSave) saveChat();
+
+      chatEl.innerHTML = "";
+      c.messages.forEach((m: any, index: number) => {
         if (m.role === "user") {
           const row = document.createElement("div");
           row.className = "row user-row";
-          let inner = `<div class="avatar user">${ICONS.user}</div><div class="bubble">`;
-          if (c.mode === "research") inner += `<span class="mode-pill research">Research</span>`;
-          if (m.attach === "image") inner += `<img class="attach-thumb" src="${m.image || ""}" alt="uploaded image"/>`;
-          if (m.attach === "video") inner += `<span class="attach-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg> Video attached</span>`;
-          inner += `<span>${escapeHtml(m.text || "")}</span></div>`;
-          row.innerHTML = inner;
+          if (m.isEditing) {
+             let inner = `<div class="avatar user">${ICONS.user}</div><div class="bubble" data-index="${index}" style="min-width: 250px;">
+               <p style="font-size: 11px; margin-bottom: 4px; font-weight: 600; opacity: 0.8;">What do you want to change?</p>
+               <textarea class="edit-textarea" id="edit-text-${index}" rows="3" style="width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px; font-size: 14px; font-family: inherit; resize: vertical; outline: none; margin-bottom: 8px;">${escapeHtml(m.text || "")}</textarea>
+               <div class="msg-actions" style="margin-top: 0;">
+                 <button class="action-btn edit-save-btn" data-index="${index}" style="background: var(--primary); color: white; border-color: var(--primary);">Save & Regenerate</button>
+                 <button class="action-btn edit-cancel-btn" data-index="${index}">Cancel</button>
+               </div>
+             </div>`;
+             row.innerHTML = inner;
+          } else {
+             let inner = `<div class="avatar user">${ICONS.user}</div><div class="bubble" data-index="${index}">`;
+             if (c.mode === "research") inner += `<span class="mode-pill research">Research</span>`;
+             if (m.attach === "image") inner += `<img class="attach-thumb" src="${m.image || ""}" alt="uploaded image"/>`;
+             if (m.attach === "video") inner += `<span class="attach-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg> Video attached</span>`;
+             inner += `<span>${escapeHtml(m.text || "")}</span>
+             <div class="msg-actions">
+               <button class="action-btn user-edit-btn" data-index="${index}" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg> Edit</button>
+               <button class="action-btn user-copy-btn" data-text="${escapeHtml(m.text || "")}" title="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button>
+               <button class="action-btn user-del-btn" data-index="${index}" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+             </div>
+             </div>`;
+             row.innerHTML = inner;
+          }
           chatEl.appendChild(row);
+        } else if (m.type === "image_generating") {
+          const row = document.createElement("div");
+          row.className = "row bot-row";
+          const elapsed = Date.now() - (m.startTime || Date.now());
+          const delay = -(elapsed / 1000);
+          row.innerHTML = `<div class="avatar bot">${ICONS.bot}</div><div class="bubble bot-response" style="background:transparent;border:none;padding:0;">
+            <div class="image-gen-card">
+               <div class="gen-header">
+                  <div class="gen-spinner"></div>
+                  <span>Generating image...</span>
+               </div>
+               <div class="gen-progress-track">
+                  <div class="gen-progress-bar" style="animation-delay: ${delay}s"></div>
+               </div>
+               <div class="gen-time">Takes ~1 minute</div>
+            </div>
+          </div>`;
+          chatEl.appendChild(row);
+        } else if (m.type === "image_result") {
+          const row = document.createElement("div");
+          row.className = "row bot-row";
+          row.innerHTML = `<div class="avatar bot">${ICONS.bot}</div><div class="bubble bot-response" style="background:transparent;border:none;padding:0;">
+            <div class="image-result-card">
+               <img src="${m.url}" alt="Generated Image" />
+               <div class="msg-actions">
+                  <button class="action-btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> Save</button>
+                  <button class="action-btn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg> Fine tune</button>
+               </div>
+            </div>
+          </div>`;
+          chatEl.appendChild(row);
+        } else if (m.type === "essay_form") {
+          const row = document.createElement("div");
+          row.className = "row bot-row";
+          row.innerHTML = `<div class="avatar bot">${ICONS.bot}</div><div class="bubble bot-response">
+            <div style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--primary);font-weight:600;"><span class="pulse-dot" style="width:8px;height:8px;background:var(--primary);border-radius:50%;display:inline-block;animation:blink 1s infinite"></span> Running system...</div>
+            <form class="essay-form" id="essayForm">
+              <input type="text" id="essayTitle" placeholder="Title of ${escapeHtml(m.targetType || 'essay')}" required />
+              <input type="text" id="essayInclude" placeholder="What should be included?" required />
+              <input type="number" id="essayWords" placeholder="Word amount" value="300" required />
+              <button type="submit">Save & Generate</button>
+            </form>
+          </div>`;
+          chatEl.appendChild(row);
+
+          const eForm = row.querySelector('#essayForm') as HTMLFormElement;
+          eForm.addEventListener('submit', (e) => {
+             e.preventDefault();
+             const title = (row.querySelector('#essayTitle') as HTMLInputElement).value;
+             const inc = (row.querySelector('#essayInclude') as HTMLInputElement).value;
+             const words = (row.querySelector('#essayWords') as HTMLInputElement).value;
+             const p = `Write an ${m.targetType || 'essay'} titled "${title}". Make sure to include: ${inc}. Word length requirement: ${words} words.`;
+             c.messages.pop(); // remove form
+             saveChat();
+             renderMessages();
+             run(p, null, true);
+          });
         } else {
           const row = document.createElement("div");
           row.className = "row bot-row";
-          row.innerHTML = `<div class="avatar bot">${ICONS.bot}</div><div class="bubble bot-response">${mdToHtml(m.content)}</div>`;
+          
+          let botInner = `<div class="avatar bot">${ICONS.bot}</div><div class="bubble bot-response">${mdToHtml(m.content)}`;
+          
+          if (m.hasEssayOptions) {
+             botInner += `
+             <div class="essay-options">
+               <button class="chip-btn" data-action="Make it sound more human">Human sounding</button>
+               <button class="chip-btn" data-action="Fine tune this text">Fine tune</button>
+               <button class="chip-btn" data-action="Change the topic">Change the topic</button>
+             </div>`;
+          }
+
+          botInner += `
+          <div class="msg-actions">
+            <button class="action-btn" title="Thumbs Up"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg></button>
+            <button class="action-btn" title="Thumbs Down"><svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-2"></path></svg></button>
+            <button class="action-btn bot-copy-btn" data-text="${escapeHtml(m.content || "")}" title="Copy"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+            <button class="action-btn bot-regen-btn" data-index="${index}" title="Regenerate"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg></button>
+          </div></div>`;
+
+          row.innerHTML = botInner;
           chatEl.appendChild(row);
         }
       });
@@ -346,123 +440,66 @@ GUARDRAIL POLICY INSTRUCTION:
       closeSidebar();
     }
 
-    /* ---------------- Pretrained Offline Model Helper ---------------- */
-    function getPretrainedResponse(text: string): string {
-      const query = text.toLowerCase().trim();
-
-      // 1. Black holes
-      if (/black.?hole/i.test(query)) {
-        return `### 🌌 Black Holes (Orion Offline Knowledge Base)
-
-A **black hole** is an incredibly dense region of spacetime where gravity is so intense that nothing—not even light—can escape its pull. Here is a simplified breakdown of how they operate:
-
-1. **Stellar Collapse:** Most black holes are born when massive stars run out of fuel and collapse under their own colossal weight.
-2. **Event Horizon:** This is the "boundary of no escape." Once an object crosses the event horizon, the escape velocity exceeds the speed of light.
-3. **Singularity:** At the core lies a point of infinite density where the laws of conventional physics break down.
-
-*Intuitive Analogy:* Imagine placing a heavy lead weight on a soft mattress; it creates a deep well. A black hole is like a well so deep that objects can only slide inward, never climbing back up.`;
-      }
-
-      // 2. Study plan
-      if (/study.?plan|how to study|study guide/i.test(query)) {
-        return `### 📚 High-Efficiency Study Blueprint (Pretrained Parameter Set)
-
-Here is a scientifically optimized, offline-friendly study regimen built into my local weights:
-
-*   **1. The Pomodoro Protocol:** Maintain deep focus blocks of 25–50 minutes, followed by 5–10 minute active rest intervals. Avoid context switching at all costs.
-*   **2. Active Recall over Passive Reading:** Instead of simply highlighting textbooks, shut the book and write down everything you remember or attempt to teach it aloud.
-*   **3. Spaced Repetition Intervals:** Review key concepts at growing intervals (1 day, 3 days, 7 days, 30 days) to convert short-term memories into permanent cerebral pathways.
-*   **4. Feedback Diagnostic:** Constantly test yourself using past papers or custom queries to find knowledge gaps early.`;
-      }
-
-      // 3. Deep sea
-      if (/deep.?sea|ocean|abyss|marine life/i.test(query)) {
-        return `### 🌊 The Deep Sea Abyss (Orion Offline Oceanography)
-
-The deep sea (the bathypelagic and abyssal zones) is one of the most extreme environments on Earth, yet it contains highly specialized life forms:
-
-*   **Bioluminescence:** Over 90% of deep-sea creatures generate chemical light to attract prey, search for mates, or startle predators in absolute darkness.
-*   **Hydrothermal Vents:** Superheated water (up to 400°C) rich in hydrogen sulfide erupts from ocean fissures. Chemoautotrophic bacteria turn these chemicals into energy, supporting thriving communities without any sunlight.
-*   **Atmospheric Pressure:** At the bottom of the Mariana Trench, the water pressure is over 1,000 times that of sea level, equivalent to having an elephant balance on your fingertip.`;
-      }
-
-      // 4. Jokes
-      if (/joke|tell me a joke/i.test(query)) {
-        return `### ⚡ Pretrained Humor Module
-Here is a classic from my offline dataset:
-
-**Why don't scientists trust atoms?**
-*Because they make up everything!* ⚛️`;
-      }
-
-      // 5. Help / Capabilities
-      if (/help|what can you do|capabilities|features/i.test(query)) {
-        return `### ⚙️ Orion Local Capabilities
-
-I am running in **Pretrained Mode**, responding entirely from my offline knowledge base without using external servers.
-
-**What I can do offline:**
-- Explain scientific, historical, and philosophical concepts.
-- Provide structured study strategies, brainstorming, and writing assistance.
-- Help debug code and explain programming logic.
-- Answer queries about Garexcell products.
-
-**Active Research Mode:**
-If you need **up-to-date 2026 information**, real-time weather, or external links, select **Research Mode** from the attach (+) menu or mention words like *weather, news, or latest*. This activates my Gemini active web search integration.`;
-      }
-
-      // 6. Special Coding/Programming
-      if (/code|program|developer|javascript|typescript|python|html|css|react|node/i.test(query)) {
-        return `### 💻 Software Architecture & Coding Insights
-
-As an offline pretrained assistant, I have compiled extensive knowledge of modern software development:
-
-*   **Modularity:** Always split complex components into smaller, isolated modules to prevent large file overflows and state pollution.
-*   **Clean Abstractions:** Keep side effects out of render cycles. In React, stabilize callbacks using dependencies.
-*   **Type Safety:** Leverage TypeScript's strong compiler tools to capture runtime mismatches early.
-
-Here is a fast local state implementation template:
-\`\`\`typescript
-interface StateContainer<T> {
-  value: T;
-  listeners: Set<(val: T) => void>;
-  update: (next: T) => void;
-}
-\`\`\`
-
-Let me know what specific block of code or logic you would like to refine!`;
-      }
-
-      // 7. Gaming
-      if (/game|gaming|playxcade|cloud|console|pc/i.test(query)) {
-        return `### 🎮 Gaming & Cloud Systems Analysis
-
-From my localized weights, I have complete records on advanced gaming systems:
-
-- **Low Latency Pipelines:** Cloud gaming networks (like **Garexcell Cloud Gaming**) rely on real-time video frames streamed with sub-15ms encoding speeds.
-- **WebRTC Interoperability:** High-fidelity multiplayer voice/video rooms utilize STUN/TURN servers to establish robust peer-to-peer pipelines.
-- **Performance Optimization:** Keeping your framerates stable requires offloading heavy compute tasks to secondary worker threads.`;
-      }
-
-      // Catch-all general pretrained assistant response
-      return `### 🧠 Orion Pretrained Model (8B Offline Weights)
-
-I am responding directly from my localized parameter weights. As a pretrained offline-first assistant, I have analyzed your query and formulated the following synthesis:
-
-- **Substantive Core:** You asked about "${text}".
-- **Offline Understanding:** This falls into my core training corpus. I can process logic, analyze text, and draft structured responses locally.
-- **Limitations:** I am currently running without active external network search. For live 2026 events, current local weather, or dynamic web page lookups, please activate **Research Mode** from the attach (+) menu.
-
-How would you like to build on this or explore further?`;
-    }
-
     /* ---------------- Send flow ---------------- */
-    function run(text: string, attach: any) {
+    function run(text: string, attach: any, isEssayGenerate = false) {
       text = text.trim();
       if (!text && attach) text = (attach.intro || (attach.type === "video" ? "What are the key points of this video?" : "Describe this image."));
       if (!text && !attach) return;
       let c = getChat();
       if (!c) { newChat(); c = getChat(); }
+
+      // Pro usage limit check for guests
+      if (!user && activeModel.includes("Pro")) {
+        let uses = parseInt(localStorage.getItem("orion_pro_uses") || "0", 10);
+        if (uses >= 2) {
+          c.messages.push({ role: "assistant", content: "You have reached your limit of 2 free uses for the Pro model as a guest. Please log in or switch to a different model." });
+          saveChat();
+          renderMessages();
+          return;
+        }
+        localStorage.setItem("orion_pro_uses", (uses + 1).toString());
+      }
+
+      // Command handling
+      if (text.startsWith("/generate ")) {
+        const parts = text.split(" ");
+        const type = parts[1];
+        const arg = parts.slice(2).join(" ");
+        
+        if (type === "image") {
+          c.messages.push({ role: "user", text, attach: attach ? attach.type : null, image: attach && attach.type === "image" ? attach.url : null, content: attach ? attach.content : null });
+          if (!user) {
+            let uses = parseInt(localStorage.getItem("orion_image_uses") || "0", 10);
+            if (uses >= 1) {
+              c.messages.push({ role: "assistant", content: "You have reached your limit of 1 free image generation as a guest. Please log in to generate more images." });
+              saveChat(); renderMessages(); return;
+            }
+            localStorage.setItem("orion_image_uses", (uses + 1).toString());
+          }
+          
+          const msgId = Date.now().toString();
+          c.messages.push({ role: "assistant", type: "image_generating", prompt: arg, id: msgId, startTime: Date.now() });
+          nameFromMessage(c, text);
+          saveChat(); renderMessages();
+          return;
+        } else if (["paragraph", "story", "essay"].includes(type)) {
+          c.messages.push({ role: "user", text, attach: attach ? attach.type : null, image: attach && attach.type === "image" ? attach.url : null, content: attach ? attach.content : null });
+          c.messages.push({ role: "assistant", type: "essay_form", targetType: type });
+          nameFromMessage(c, text);
+          saveChat(); renderMessages(); return;
+        }
+      }
+
+      // Intercept essay/paragraph requests
+      if (!isEssayGenerate) {
+        const essayMatch = text.toLowerCase().match(/write\s+(a|an)\s+(essay|paragraph|article|story)/i);
+        if (essayMatch && c.messages[c.messages.length - 1]?.type !== "essay_form") {
+          c.messages.push({ role: "assistant", type: "essay_form", targetType: essayMatch[2] });
+          saveChat();
+          renderMessages();
+          return;
+        }
+      }
 
       // Direct rule check for creator query
       if (/who (created|made|built|developed|designed) (you|orion)/i.test(text)) {
@@ -508,8 +545,12 @@ How would you like to build on this or explore further?`;
         return;
       }
 
-      const researched = c.mode === "research" || /weather|temperature|today|latest|news|forecast|current|breaking|scrape|instagram|tiktok|twitter|threads|istartu|2026/i.test(text);
-      if (researched) searchNote.hidden = false;
+      const researched = c.mode === "research";
+      if (researched) {
+        searchNote.hidden = false;
+      } else {
+        searchNote.hidden = true;
+      }
 
       c.messages.push({ role: "user", text, attach: attach ? (attach.type === "image" ? "image" : "video") : null, image: attach && attach.type === "image" ? attach.url : null, content: attach ? attach.content : null });
       nameFromMessage(c, text);
@@ -519,23 +560,26 @@ How would you like to build on this or explore further?`;
       const row = addBotShell();
       const bubble = row.querySelector(".bubble") as HTMLElement;
 
-      if (!researched) {
-        // Run locally as a Pretrained Offline Model
-        setTimeout(() => {
-          const completion = {
-            role: "assistant",
-            content: getPretrainedResponse(text)
-          };
-          c.messages.push(completion);
-          saveChat();
-          streamAnswer(row, completion.content).then(() => renderMessages());
-        }, 400); // 400ms delay to make the offline response feel snappy and natural
-        return;
-      }
+      const doChatCompletion = async (req: any, isResearched: boolean) => {
+        // If it's a web search (research mode) OR window.websim is not available, use Gemini backend
+        if (isResearched || typeof (window as any).websim === 'undefined') {
+          const response = await fetch('/api/ai/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...req, researched: isResearched })
+          });
+          if (!response.ok) throw new Error('AI service error');
+          return await response.json();
+        } else {
+          // Use the open source websim model directly on the client (no server)
+          return await (window as any).websim.chat.completions.create(req);
+        }
+      };
 
-      websim.chat.completions.create({ messages: buildMessages(c, researched), researched })
+      doChatCompletion({ messages: buildMessages(c, researched) }, researched)
         .then((completion: any) => {
           searchNote.hidden = true;
+          if (isEssayGenerate) completion.hasEssayOptions = true;
           c.messages.push(completion);
           saveChat();
           return streamAnswer(row, completion.content).then(() => renderMessages());
@@ -558,7 +602,12 @@ How would you like to build on this or explore further?`;
       showChat();
       const row = document.createElement("div");
       row.className = "row bot-row";
-      row.innerHTML = `<div class="avatar bot">${ICONS.bot}</div><div class="bubble bot-response"><span class="cursor"></span></div>`;
+      row.innerHTML = `<div class="avatar bot">${ICONS.bot}</div><div class="bubble bot-response">
+        <div class="thinking-spinner-wrap">
+          <svg class="thinking-spinner" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke-width="3" stroke="currentColor" stroke-dasharray="31.4 31.4" stroke-linecap="round"></circle></svg>
+          <span>Orion is thinking...</span>
+        </div>
+      </div>`;
       chatEl.appendChild(row);
       scrollToBottom();
       return row;
@@ -583,9 +632,28 @@ How would you like to build on this or explore further?`;
     }
 
     /* ---------------- Composer ---------------- */
+    const cmdPopup = $("commandPopup");
+    const cmdInputContainer = $("cmdInputContainer");
+    const cmdTypeEl = $("cmdType");
+    const cmdArg = $("cmdArg") as HTMLInputElement;
+
     form.addEventListener("submit", (e) => {
       e.preventDefault();
-      const t = input.value;
+      
+      let t = input.value;
+      
+      if (cmdInputContainer.style.display === "flex") {
+         const type = cmdTypeEl.textContent;
+         const arg = cmdArg.value;
+         if (!arg.trim()) return;
+         
+         t = `/generate ${type} ${arg}`;
+         
+         cmdInputContainer.style.display = "none";
+         input.style.display = "block";
+         cmdArg.value = "";
+      }
+
       if (!t.trim() && !pendingAttach) return;
       const attach = pendingAttach;
       pendingAttach = null;
@@ -596,18 +664,139 @@ How would you like to build on this or explore further?`;
       scrollToBottom();
       run(t, attach || null);
     });
-    input.addEventListener("input", autoResize);
+
+    input.addEventListener("input", (e) => {
+      autoResize();
+      if (input.value.trim() === "/generate") {
+        cmdPopup.hidden = false;
+      } else {
+        cmdPopup.hidden = true;
+      }
+    });
+
+    cmdPopup.addEventListener("click", (e) => {
+      const item = (e.target as HTMLElement).closest(".cmd-item");
+      if (item) {
+        const cmd = (item as HTMLElement).dataset.cmd;
+        input.style.display = "none";
+        cmdInputContainer.style.display = "flex";
+        cmdTypeEl.textContent = cmd || "image";
+        cmdArg.placeholder = cmd === "image" ? "describe what image..." : `what ${cmd}...`;
+        cmdArg.focus();
+        cmdPopup.hidden = true;
+      }
+    });
+
+    cmdArg.addEventListener("keydown", (e) => {
+       if (e.key === "Backspace" && cmdArg.value === "") {
+          cmdInputContainer.style.display = "none";
+          input.style.display = "block";
+          input.value = "/generate ";
+          input.focus();
+       }
+       if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          form.dispatchEvent(new Event("submit"));
+       }
+    });
+
     function autoResize() {
-      sendBtn.disabled = !input.value.trim() && !pendingAttach;
+      sendBtn.disabled = (!input.value.trim() && cmdInputContainer.style.display !== "flex" && !cmdArg.value.trim()) && !pendingAttach;
       input.style.height = "auto";
       input.style.height = Math.min(input.scrollHeight, 160) + "px";
     }
+
+    cmdArg.addEventListener("input", autoResize);
+
     input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.dispatchEvent(new Event("submit")); } });
     containerRef.current!.addEventListener("click", (e) => {
-      const chip = (e.target as HTMLElement).closest(".chip");
+      const target = e.target as HTMLElement;
+      
+      const chip = target.closest(".chip");
       if (chip) {
         input.value = chip.textContent || "";
         form.dispatchEvent(new Event("submit"));
+        return;
+      }
+
+      const optBtn = target.closest(".chip-btn");
+      if (optBtn) {
+        const action = (optBtn as HTMLElement).dataset.action;
+        if (action) {
+          input.value = action;
+          form.dispatchEvent(new Event("submit"));
+        }
+        return;
+      }
+
+      const c = getChat();
+      if (target.closest(".user-del-btn")) {
+        const idx = parseInt((target.closest(".user-del-btn") as HTMLElement).dataset.index || "-1", 10);
+        if (idx >= 0 && c) {
+          c.messages.splice(idx, 2); // remove user msg and bot response
+          saveChat();
+          renderMessages();
+        }
+        return;
+      }
+
+      if (target.closest(".user-edit-btn")) {
+        const idx = parseInt((target.closest(".user-edit-btn") as HTMLElement).dataset.index || "-1", 10);
+        if (idx >= 0 && c && c.messages[idx]) {
+          c.messages[idx].isEditing = true;
+          renderMessages();
+        }
+        return;
+      }
+
+      if (target.closest(".edit-cancel-btn")) {
+        const idx = parseInt((target.closest(".edit-cancel-btn") as HTMLElement).dataset.index || "-1", 10);
+        if (idx >= 0 && c && c.messages[idx]) {
+          c.messages[idx].isEditing = false;
+          renderMessages();
+        }
+        return;
+      }
+
+      if (target.closest(".edit-save-btn")) {
+        const idx = parseInt((target.closest(".edit-save-btn") as HTMLElement).dataset.index || "-1", 10);
+        if (idx >= 0 && c && c.messages[idx]) {
+          const textarea = document.getElementById(`edit-text-${idx}`) as HTMLTextAreaElement;
+          const newText = textarea.value;
+          const oldMsg = c.messages[idx];
+          
+          c.messages = c.messages.slice(0, idx); // Truncate history
+          saveChat();
+          renderMessages();
+          
+          run(newText, oldMsg.attach ? {type: oldMsg.attach, url: oldMsg.image, content: oldMsg.content} : null);
+        }
+        return;
+      }
+
+      if (target.closest(".bot-regen-btn")) {
+        const idx = parseInt((target.closest(".bot-regen-btn") as HTMLElement).dataset.index || "-1", 10);
+        if (idx >= 1 && c && c.messages[idx]) {
+          const userMsg = c.messages[idx - 1]; // Assume previous is the user message
+          c.messages = c.messages.slice(0, idx - 1); // Truncate history before user message
+          saveChat();
+          renderMessages();
+          
+          run(userMsg.text, userMsg.attach ? {type: userMsg.attach, url: userMsg.image, content: userMsg.content} : null);
+        }
+        return;
+      }
+
+      if (target.closest(".user-copy-btn")) {
+        const text = (target.closest(".user-copy-btn") as HTMLElement).dataset.text;
+        if (text) navigator.clipboard.writeText(text);
+        return;
+      }
+
+      if (target.closest(".bot-copy-btn")) {
+        const text = (target.closest(".bot-copy-btn") as HTMLElement).dataset.text;
+        if (text) navigator.clipboard.writeText(text);
+        return;
       }
     });
 
@@ -745,6 +934,33 @@ How would you like to build on this or explore further?`;
       }
     });
 
+    /* ---------------- Export ---------------- */
+    const exportChatEl = $("exportChat");
+    exportChatEl.addEventListener("click", () => {
+      const c = getChat();
+      if (!c || c.messages.length === 0) {
+        alert("No conversation to export.");
+        return;
+      }
+      let exportText = `Conversation: ${c.name || "New chat"}\nDate: ${new Date().toLocaleString()}\n\n`;
+      c.messages.forEach((m: any) => {
+        if (m.type === "image_result") {
+          exportText += `Orion (Image Generation):\n[Generated Image: ${m.url}]\n\n`;
+        } else if (m.type !== "image_generating" && m.type !== "essay_form") {
+          exportText += `${m.role === "user" ? "You" : "Orion"}:\n${m.text || m.content}\n\n`;
+        }
+      });
+      const blob = new Blob([exportText], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `orion-chat-${Date.now()}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
     /* ---------------- Init ---------------- */
     function init() {
       autoResize();
@@ -821,6 +1037,9 @@ How would you like to build on this or explore further?`;
             <button className="edit-name" id="editName" title="Rename chat" aria-label="Rename chat">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
             </button>
+            <button className="export-chat" id="exportChat" title="Export conversation" aria-label="Export conversation">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            </button>
           </div>
 
           <button className="avatar-btn" id="avatarBtn" aria-label="Account" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -855,12 +1074,24 @@ How would you like to build on this or explore further?`;
           </div>
         </main>
 
-        <form className="composer" id="composer">
+        <form className="composer" id="composer" style={{ position: "relative" }}>
+          <div id="commandPopup" className="command-popup" hidden>
+            <div className="cmd-item" data-cmd="image">/generate image</div>
+            <div className="cmd-item" data-cmd="paragraph">/generate paragraph</div>
+            <div className="cmd-item" data-cmd="story">/generate story</div>
+            <div className="cmd-item" data-cmd="essay">/generate essay</div>
+          </div>
           <div className="composer-box">
             <button className="button plus" type="button" id="plusBtn" aria-label="Attach &amp; mode">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
             </button>
-            <textarea id="input" rows={1} placeholder="Message Orion" autoComplete="off"></textarea>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+               <div id="cmdInputContainer" className="cmd-input-container">
+                  <div className="cmd-pill">/generate <span id="cmdType">image</span></div>
+                  <input type="text" id="cmdArg" placeholder="what image..." />
+               </div>
+               <textarea id="input" rows={1} placeholder="Message Orion" autoComplete="off"></textarea>
+            </div>
             <button className="send" id="send" type="submit" aria-label="Send" disabled>
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 20v-6l8-2-8-2V4l18 8z"/></svg>
             </button>
@@ -910,7 +1141,7 @@ How would you like to build on this or explore further?`;
         <input type="file" id="fileVideo" accept="video/*" hidden />
       </div>
 
-      {/* Login screen overlay (if needed, kept for parity with HTML) */}
+      {/* Login screen overlay */}
       <div className="login-screen" id="loginScreen" hidden>
         <div className="login-main">
           <div className="user-avatar-lg" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -920,11 +1151,29 @@ How would you like to build on this or explore further?`;
           </div>
           <h2>{user ? "Account Details" : "Guest Mode"}</h2>
           <p className="minor-note">{user ? `Logged in as ${user.username}` : "You are using Orion as a guest."}</p>
+          
+          {user && (
+            <div style={{width: '100%', maxWidth: '300px', marginTop: '10px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '8px'}}>
+               <h3 style={{fontSize: '14px', color: 'var(--text)', marginBottom: '2px', fontWeight: 'bold'}}>AI Settings</h3>
+               <button style={{padding: '12px 14px', background: 'var(--bg-soft)', borderRadius: '12px', border: '1px solid var(--border)', textAlign: 'left', fontWeight: '600', cursor: 'pointer', color: 'var(--text)', fontSize: '14px'}}>Activity</button>
+               <button style={{padding: '12px 14px', background: 'var(--bg-soft)', borderRadius: '12px', border: '1px solid var(--border)', textAlign: 'left', fontWeight: '600', cursor: 'pointer', color: 'var(--text)', fontSize: '14px'}}>Personalization</button>
+               <button style={{padding: '12px 14px', background: 'var(--bg-soft)', borderRadius: '12px', border: '1px solid var(--border)', textAlign: 'left', fontWeight: '600', cursor: 'pointer', color: 'var(--text)', fontSize: '14px'}}>Memory</button>
+               
+               <button style={{marginTop: '12px', padding: '14px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: 'white', borderRadius: '12px', border: 'none', fontWeight: 'bold', cursor: 'pointer', textAlign: 'center', fontSize: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px'}}>
+                  <Sparkles size={16} /> Upgrade to Pro
+               </button>
+            </div>
+          )}
         </div>
         <button className="login-btn" id="loginBtn" style={{ display: user ? "none" : "block" }}>Login to save chats</button>
         <button className="login-go-back" id="goBack">Go back</button>
       </div>
 
+      {user && (
+        <div style={{ position: 'fixed', bottom: 0, left: 0, width: '100%', zIndex: 110 }}>
+          <BottomBar />
+        </div>
+      )}
     </div>
   );
 };

@@ -146,7 +146,62 @@ export const AuthPage: React.FC<AuthPageProps> = ({ defaultEngine = 'supabase' }
     );
   }
 
+  const generateFingerprint = () => {
+    return btoa(navigator.userAgent + navigator.language + window.screen.colorDepth + window.screen.width + "garexcell");
+  };
+
+  const getLoginAttempts = (email: string) => {
+    const data = localStorage.getItem(`login_attempts_${email.toLowerCase()}`);
+    return data ? JSON.parse(data) : { count: 0, lockedUntil: 0 };
+  };
+
+  const incrementLoginAttempts = (email: string) => {
+    const attempts = getLoginAttempts(email);
+    attempts.count += 1;
+    if (attempts.count >= 5) {
+      attempts.lockedUntil = Date.now() + 15 * 60 * 1000; // lock for 15 mins
+    }
+    localStorage.setItem(`login_attempts_${email.toLowerCase()}`, JSON.stringify(attempts));
+    return attempts;
+  };
+
+  const resetLoginAttempts = (email: string) => {
+    localStorage.removeItem(`login_attempts_${email.toLowerCase()}`);
+  };
+
+  const checkSignupRateLimit = () => {
+    const fp = generateFingerprint();
+    const data = localStorage.getItem(`signup_limit_${fp}`);
+    const now = Date.now();
+    if (data) {
+      const { count, lastSignup } = JSON.parse(data);
+      if (now - lastSignup < 24 * 60 * 60 * 1000 && count >= 3) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const recordSignup = () => {
+    const fp = generateFingerprint();
+    const data = localStorage.getItem(`signup_limit_${fp}`);
+    const now = Date.now();
+    let count = 1;
+    if (data) {
+      const prev = JSON.parse(data);
+      if (now - prev.lastSignup < 24 * 60 * 60 * 1000) {
+        count = prev.count + 1;
+      }
+    }
+    localStorage.setItem(`signup_limit_${fp}`, JSON.stringify({ count, lastSignup: now }));
+  };
+
   const handleSignupProgress = async () => {
+    if (!checkSignupRateLimit()) {
+      setError('Rate limit exceeded: Too many accounts created from this device.');
+      return;
+    }
+
     setIsAuthenticating(true);
     setAuthProgress(20);
     setAuthStatusStep('Connecting to secure authentication service...');
@@ -166,6 +221,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ defaultEngine = 'supabase' }
     setAuthProgress(100);
 
     if (res.success) {
+      recordSignup();
       await new Promise((r) => setTimeout(r, 150));
       setIsAuthenticating(false);
       navigate('/feed');
@@ -176,6 +232,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ defaultEngine = 'supabase' }
   };
 
   const handleLoginProgress = async () => {
+    const attempts = getLoginAttempts(email);
+    if (attempts.lockedUntil > Date.now()) {
+      const minutesLeft = Math.ceil((attempts.lockedUntil - Date.now()) / 60000);
+      setError(`Account temporarily locked due to too many failed attempts. Try again in ${minutesLeft} minutes.`);
+      return;
+    }
+
     setIsAuthenticating(true);
     setAuthProgress(30);
     setAuthStatusStep('Verifying credentials...');
@@ -191,10 +254,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({ defaultEngine = 'supabase' }
     setAuthProgress(100);
 
     if (res.success) {
+      resetLoginAttempts(email);
       await new Promise((r) => setTimeout(r, 150));
       setIsAuthenticating(false);
       navigate('/feed');
     } else {
+      incrementLoginAttempts(email);
       setIsAuthenticating(false);
       setError(res.error || 'Authentication failed. Please verify email & password.');
     }

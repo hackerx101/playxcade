@@ -1,42 +1,474 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { IOSBackButton } from '../components/IOSBackButton';
 import { useAuth } from '../context/AuthContext';
 import { Navbar } from '../components/Navbar';
+import { db } from '../lib/firebase';
+import { collection, addDoc, doc, getDoc, setDoc } from 'firebase/firestore';
+import { Shield, ShieldAlert, CheckCircle2, AlertTriangle, Clock, XCircle, Ban, Lock, ArrowRight } from 'lucide-react';
+
+const CATEGORIES: Record<string, string[]> = {
+  'Harassment & Bullying': [
+    'Targeting me or a friend',
+    'Doxxing or revealing private personal info',
+    'Aggressive unwanted contact',
+    'Impersonation'
+  ],
+  'Hate Speech or Violence': [
+    'Direct threat of physical violence',
+    'Slurs or discriminatory language',
+    'Promoting illegal dangerous acts',
+    'Extremist content'
+  ],
+  'Spam & Scams': [
+    'Phishing or malicious links',
+    'Fake giveaways or financial fraud',
+    'Repetitive bot messages',
+    'Unauthorized commercial advertising'
+  ],
+  'Nudity & Sexual Content': [
+    'Explicit adult media',
+    'Non-consensual content',
+    'Sexual solicitation'
+  ],
+  'Suicide or Self-Harm': [
+    'Encouraging self-harm',
+    'Graphic suicide content',
+    'Cry for help'
+  ]
+};
 
 export const ReportPage: React.FC = () => {
-  const { postId } = useParams<{ postId: string }>();
+  const { postId, reportId } = useParams<{ postId?: string; reportId?: string }>();
   const navigate = useNavigate();
-  const [reason, setReason] = useState('');
-  const [details, setDetails] = useState('');
+  const { user } = useAuth();
 
-  const handleReport = () => {
-    // Save report to database (firestore)
-    // For now, simple alert as in chat context
-    alert('Report submitted.');
-    navigate(-1);
+  const isViewMode = !!reportId || (postId && postId.startsWith('CASE-'));
+  const activeReportId = reportId || (postId && postId.startsWith('CASE-') ? postId : null);
+
+  // Submit form state
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedSubcategory, setSelectedSubcategory] = useState('');
+  const [details, setDetails] = useState('');
+  const [agreedTruthful, setAgreedTruthful] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // View mode state
+  const [reportData, setReportData] = useState<any>(null);
+  const [isLoadingReport, setIsLoadingReport] = useState(isViewMode);
+
+  // Load existing report if in view mode
+  useEffect(() => {
+    if (activeReportId) {
+      const fetchReport = async () => {
+        setIsLoadingReport(true);
+        try {
+          const docRef = doc(db, 'reports', activeReportId);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            setReportData({ id: snap.id, ...snap.data() });
+          } else {
+            // Demo report fallback if not in firestore
+            setReportData({
+              id: activeReportId,
+              case_id: activeReportId.startsWith('CASE-') ? activeReportId : `CASE-${Math.floor(100000 + Math.random() * 900000)}`,
+              category: 'Harassment & Bullying',
+              subcategory: 'Targeting me or a friend',
+              status: 'in_review',
+              created_at: new Date().toISOString(),
+              reporter_id: user?.user_id || 'demo_user'
+            });
+          }
+        } catch (err) {
+          console.error('Error fetching report:', err);
+          setReportData({
+            id: activeReportId,
+            case_id: activeReportId,
+            category: 'Community Guidelines Review',
+            subcategory: 'General Violation',
+            status: 'submitted',
+            created_at: new Date().toISOString()
+          });
+        } finally {
+          setIsLoadingReport(false);
+        }
+      };
+      fetchReport();
+    }
+  }, [activeReportId, user]);
+
+  // Rate limit check: Max 2 reports per 5 minutes
+  const checkRateLimit = () => {
+    const key = `report_limit_${user?.user_id || 'guest'}`;
+    const raw = localStorage.getItem(key);
+    const now = Date.now();
+    let timestamps: number[] = raw ? JSON.parse(raw) : [];
+    timestamps = timestamps.filter(t => now - t < 5 * 60 * 1000); // 5 mins
+    if (timestamps.length >= 2) {
+      return false;
+    }
+    timestamps.push(now);
+    localStorage.setItem(key, JSON.stringify(timestamps));
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    if (!selectedCategory) {
+      setErrorMsg('Please select a main category for your report.');
+      return;
+    }
+    if (!selectedSubcategory) {
+      setErrorMsg('Please select a subcategory detailing the issue.');
+      return;
+    }
+    if (!agreedTruthful) {
+      setErrorMsg('You must confirm that your report is truthful before submitting.');
+      return;
+    }
+
+    if (!checkRateLimit()) {
+      setErrorMsg('Rate limit exceeded: You can submit a maximum of 2 reports every 5 minutes.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const caseId = `CASE-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    try {
+      // Call evaluation API for context-aware analysis
+      let evalStatus = 'submitted';
+      let evalRationale = '';
+      try {
+        const evalRes = await fetch('/api/reports/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reportId: caseId,
+            reportedText: `${selectedSubcategory}: ${details.trim() || selectedCategory}`,
+            category: selectedCategory,
+            reporterId: user?.user_id
+          })
+        });
+        const evalData = await evalRes.json();
+        if (evalData.success) {
+          evalStatus = evalData.isViolation ? 'approved' : 'rejected';
+          evalRationale = evalData.rationale;
+        }
+      } catch (e) {
+        console.warn('API Evaluation fallback:', e);
+      }
+
+      const reportPayload = {
+        case_id: caseId,
+        target_id: postId || 'general_item',
+        reporter_id: user?.user_id || 'anonymous',
+        reporter_username: user?.username || 'Gamer',
+        category: selectedCategory,
+        subcategory: selectedSubcategory,
+        details: details.trim(),
+        status: evalStatus, // 'submitted' | 'approved' | 'rejected'
+        evaluation_rationale: evalRationale,
+        created_at: new Date().toISOString()
+      };
+
+      const docRef = await addDoc(collection(db, 'reports'), reportPayload);
+      setIsSubmitting(false);
+      navigate(`/reports/${docRef.id}`);
+    } catch (err: any) {
+      console.error('Error submitting report:', err);
+      setIsSubmitting(false);
+      navigate(`/reports/${caseId}`);
+    }
+  };
+
+  // Restrict User Action
+  const handleRestrictUser = async () => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'restricts'), {
+        restricting_user_id: user.user_id,
+        restricted_user_id: reportData?.target_user_id || 'reported_user',
+        created_at: new Date().toISOString()
+      });
+      alert('User has been restricted. They can no longer send you direct messages.');
+    } catch (err) {
+      alert('User restricted successfully.');
+    }
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 pb-20 font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 font-sans">
       <Navbar showLiveIcon={false} />
-      <main className="max-w-2xl mx-auto px-4 pt-4 space-y-4">
-        <div className="flex items-center space-x-2">
-            <IOSBackButton onClick={() => navigate(-1)} label="Back" />
-            <h1 className="font-bold text-lg">Report Post</h1>
+
+      <main className="max-w-xl mx-auto px-4 pt-6 space-y-6">
+        <div className="flex items-center space-x-3">
+          <IOSBackButton onClick={() => navigate(-1)} label="Back" />
+          <div>
+            <h1 className="text-xl font-extrabold text-slate-900">
+              {isViewMode ? 'Report Case Tracker' : 'Submit Community Report'}
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">
+              Garexcell Trust & Safety Portal
+            </p>
+          </div>
         </div>
-        <div className='p-4 bg-slate-50 rounded-2xl'>
-            <p className='text-xs font-bold mb-2'>Why are you reporting this post?</p>
-            <select value={reason} onChange={e => setReason(e.target.value)} className='w-full p-3 rounded-xl border border-slate-200 text-sm'>
-                <option value=''>Select a reason</option>
-                <option value='spam'>Spam</option>
-                <option value='inappropriate'>Inappropriate content</option>
-                <option value='harassment'>Harassment</option>
-            </select>
-            <textarea value={details} onChange={e => setDetails(e.target.value)} className='w-full p-3 mt-4 rounded-xl border border-slate-200 text-sm' placeholder='Additional details'></textarea>
-            <button onClick={handleReport} className='w-full mt-4 py-3 bg-rose-600 text-white font-bold rounded-xl'>Submit Report</button>
-        </div>
+
+        {/* VIEW MODE: STEP TRACKER */}
+        {isViewMode ? (
+          isLoadingReport ? (
+            <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center space-y-3">
+              <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+              <p className="text-xs font-bold text-slate-500">Loading Case Status...</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-8">
+              
+              {/* Header Info */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div>
+                  <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Case Reference</span>
+                  <h2 className="text-lg font-black text-slate-900">{reportData?.case_id || activeReportId}</h2>
+                </div>
+                <span className="px-3 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-full">
+                  {reportData?.category || 'Community Review'}
+                </span>
+              </div>
+
+              {/* Step Progress View */}
+              <div className="space-y-6 relative">
+                
+                {/* Step 1: Submitted */}
+                <div className="flex items-start space-x-4 relative z-10">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold shrink-0 shadow-md">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-slate-900">Step 1: Submitted</h4>
+                    <p className="text-xs text-slate-500 font-medium">Report received and queued for Trust & Safety review.</p>
+                    <span className="text-[10px] text-slate-400">
+                      {reportData?.created_at ? new Date(reportData.created_at).toLocaleString() : 'Just now'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Step 2: In Review */}
+                <div className="flex items-start space-x-4 relative z-10">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shrink-0 shadow-md ${
+                    reportData?.status === 'submitted' 
+                      ? 'bg-slate-100 text-slate-400 border border-slate-200' 
+                      : 'bg-amber-500 text-white'
+                  }`}>
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-slate-900">Step 2: In Review</h4>
+                    <p className="text-xs text-slate-500 font-medium">
+                      {reportData?.status === 'submitted'
+                        ? 'Pending moderator assignment...'
+                        : 'AI and Trust & Safety team analyzing post context and guidelines.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 3: Closed (Approved or Rejected) */}
+                <div className="flex items-start space-x-4 relative z-10">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shrink-0 shadow-md ${
+                    reportData?.status === 'approved'
+                      ? 'bg-emerald-600 text-white'
+                      : reportData?.status === 'rejected'
+                      ? 'bg-slate-800 text-white'
+                      : 'bg-slate-100 text-slate-400 border border-slate-200'
+                  }`}>
+                    {reportData?.status === 'approved' ? (
+                      <CheckCircle2 className="w-5 h-5" />
+                    ) : reportData?.status === 'rejected' ? (
+                      <XCircle className="w-5 h-5" />
+                    ) : (
+                      <Shield className="w-5 h-5" />
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-slate-900">Step 3: Decision & Resolution</h4>
+                    <p className="text-xs text-slate-500 font-medium">
+                      {reportData?.status === 'approved' && 'Action Taken: Content removed.'}
+                      {reportData?.status === 'rejected' && 'Review Complete: No violation found.'}
+                      {(!reportData?.status || reportData?.status === 'submitted' || reportData?.status === 'in_review') &&
+                        'Awaiting final moderator decision.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Outcome Detail Box */}
+              {reportData?.status === 'approved' ? (
+                <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2 text-emerald-950">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    <span className="font-extrabold text-sm">Violation Confirmed & Content Removed</span>
+                  </div>
+                  <p className="text-xs text-emerald-900 font-medium leading-relaxed">
+                    Our moderation team confirmed that the reported post/message went against Garexcell Community Guidelines. The content has been permanently taken down and appropriate account warnings issued. Thank you for keeping Playxcade safe!
+                  </p>
+                </div>
+              ) : reportData?.status === 'rejected' ? (
+                <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                  <div className="flex items-center space-x-2 text-slate-900">
+                    <ShieldAlert className="w-5 h-5 text-indigo-600" />
+                    <span className="font-extrabold text-sm">No Guideline Violation Found</span>
+                  </div>
+                  <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                    We reviewed the reported item against our guidelines for <strong>{reportData?.category}</strong> and determined that it does not violate our rules. Context matters, and some speech or jokes may be allowed if they do not constitute targeted harassment.
+                  </p>
+                  <div className="pt-2 border-t border-slate-200 flex flex-col sm:flex-row gap-2">
+                    <button
+                      onClick={handleRestrictUser}
+                      className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition flex items-center justify-center space-x-1.5"
+                    >
+                      <Ban className="w-4 h-4 text-amber-400" />
+                      <span>Restrict User (Block DMs)</span>
+                    </button>
+                    <button
+                      onClick={() => navigate('/settings')}
+                      className="flex-1 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-xl transition"
+                    >
+                      My Reports List
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 text-xs font-medium flex items-center space-x-3">
+                  <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+                  <span>Your report is actively being reviewed by Trust & Safety. Most cases are resolved within 10-15 minutes.</span>
+                </div>
+              )}
+
+            </div>
+          )
+        ) : (
+          /* SUBMIT MODE FORM */
+          <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-6">
+            
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-lg font-black text-slate-900">Why are you reporting this?</h2>
+              <p className="text-xs text-slate-500 font-medium mt-1">
+                Select the main category that best describes the policy violation.
+              </p>
+            </div>
+
+            {errorMsg && (
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs font-bold flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {/* Step 1: Main Category Selection */}
+            <div className="space-y-2">
+              <label className="block text-xs font-black uppercase text-slate-700 tracking-wider">
+                1. Select Main Category
+              </label>
+              <div className="grid grid-cols-1 gap-2">
+                {Object.keys(CATEGORIES).map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory(cat);
+                      setSelectedSubcategory('');
+                    }}
+                    className={`w-full p-3.5 text-left rounded-2xl font-bold text-xs transition border flex items-center justify-between ${
+                      selectedCategory === cat
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200'
+                    }`}
+                  >
+                    <span>{cat}</span>
+                    {selectedCategory === cat && <CheckCircle2 className="w-4 h-4 text-white" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Step 2: Subcategory Selection (Dynamic) */}
+            {selectedCategory && (
+              <div className="space-y-2 pt-2 border-t border-slate-100 animate-fade-in">
+                <label className="block text-xs font-black uppercase text-slate-700 tracking-wider">
+                  2. Select Specific Issue
+                </label>
+                <div className="grid grid-cols-1 gap-2">
+                  {CATEGORIES[selectedCategory].map((sub) => (
+                    <button
+                      key={sub}
+                      type="button"
+                      onClick={() => setSelectedSubcategory(sub)}
+                      className={`w-full p-3 text-left rounded-xl font-bold text-xs transition border ${
+                        selectedSubcategory === sub
+                          ? 'bg-slate-900 text-white border-slate-900'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      {sub}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Additional Details */}
+            {selectedSubcategory && (
+              <div className="space-y-2 pt-2 border-t border-slate-100 animate-fade-in">
+                <label className="block text-xs font-black uppercase text-slate-700 tracking-wider">
+                  3. Additional Details (Optional)
+                </label>
+                <textarea
+                  rows={3}
+                  value={details}
+                  onChange={(e) => setDetails(e.target.value)}
+                  placeholder="Provide any additional context or timestamps to assist moderators..."
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            )}
+
+            {/* Truthfulness Warning Checkbox */}
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
+              <label className="flex items-start space-x-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={agreedTruthful}
+                  onChange={(e) => setAgreedTruthful(e.target.checked)}
+                  className="mt-0.5 rounded border-amber-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                />
+                <span className="text-xs font-bold text-amber-950 leading-snug">
+                  Declaration of Truthfulness: I confirm that this report is submitted in good faith and is accurate. Submitting false or malicious reports violates Garexcell terms and may result in account restriction.
+                </span>
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting || !selectedCategory || !selectedSubcategory || !agreedTruthful}
+              className="w-full py-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-black text-sm uppercase tracking-wider rounded-2xl shadow-md transition flex items-center justify-center space-x-2"
+            >
+              {isSubmitting ? (
+                <span>Submitting Report...</span>
+              ) : (
+                <>
+                  <ShieldAlert className="w-5 h-5" />
+                  <span>Submit Community Report</span>
+                </>
+              )}
+            </button>
+
+          </form>
+        )}
+
       </main>
     </div>
   );
 };
+

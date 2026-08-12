@@ -105,70 +105,9 @@ export const LandingPage: React.FC = () => {
                 className="w-full sm:w-auto px-8 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transition flex items-center justify-center space-x-2 text-base border border-slate-800 cursor-pointer"
               >
                 <Download className="w-5 h-5 text-indigo-400" />
-                <span>Install Playxcade (PWA)</span>
+                <span>Install App</span>
               </button>
             </div>
-          </div>
-        </section>
-
-        {/* Game Discovery Feed Section (NO images, button to access each game) */}
-        <section className="max-w-7xl mx-auto py-12 px-4 sm:px-8">
-          <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 pb-4 border-b border-slate-200">
-            <div>
-              <div className="flex items-center space-x-2 text-indigo-600 font-bold text-xs uppercase tracking-wider mb-1">
-                <Gamepad2 className="w-4 h-4" />
-                <span>Featured Game Catalog</span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-                {getTranslation(language, 'gameDiscovery')}
-              </h2>
-            </div>
-            <p className="text-xs text-slate-500 mt-2 md:mt-0 font-medium">
-              Access titles instantly through Garexcell Cloud Launcher
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {GAMES_LIST.map((game) => (
-              <div
-                key={game.id}
-                className="py-4 flex flex-col justify-between border-b border-slate-200"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-1 rounded-full bg-slate-100 text-indigo-600 font-bold text-xs">
-                      {game.genre}
-                    </span>
-                    <div className="flex items-center space-x-1 text-amber-500 text-xs font-bold">
-                      <span>★ {game.rating}</span>
-                    </div>
-                  </div>
-
-                  <h3 className="text-xl font-bold text-slate-900">{game.title}</h3>
-
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    {game.description}
-                  </p>
-
-                  <div className="flex items-center space-x-2 text-xs font-semibold text-slate-500">
-                    <Users className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{game.players}</span>
-                  </div>
-                </div>
-
-                <div className="pt-5 mt-4">
-                  <button
-                    onClick={() => {
-                      navigate('/feed');
-                    }}
-                    className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-2 transition"
-                  >
-                    <Play className="w-4 h-4 fill-current" />
-                    <span>{getTranslation(language, 'launchGame')}</span>
-                  </button>
-                </div>
-              </div>
-            ))}
           </div>
         </section>
 

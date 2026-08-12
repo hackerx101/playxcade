@@ -64,6 +64,18 @@ export const SettingsPage: React.FC = () => {
   // 2FA states
   const [twoFactorEnabled, setTwoFactorEnabled] = useState<boolean>(user?.is_2fa_enabled || false);
   const [reports, setReports] = useState<any[]>([]);
+  const [violations, setViolations] = useState<any[]>([
+    {
+      id: 'viol_1',
+      guideline: 'Harassment & Bullying',
+      content: 'I killed that deal on stream today!',
+      status: 'rejected', // 'none' | 'pending' | 'approved' | 'rejected'
+      date: '2026-08-10',
+      reason: 'Flagged keyword "killed". Re-evaluated by context function: Business metaphor / harmless speech. Appeal Rejected as case is already resolved.'
+    }
+  ]);
+  const [appealModalViolId, setAppealModalViolId] = useState<string | null>(null);
+  const [appealText, setAppealText] = useState('');
   const [totpToken, setTotpToken] = useState<string>('');
   const [otpInput, setOtpInput] = useState<string>('');
   const [generatedOtpCode, setGeneratedOtpCode] = useState<string>('');
@@ -208,6 +220,7 @@ export const SettingsPage: React.FC = () => {
               { id: 'security', title: 'Security & Login', desc: 'Active sessions and passwords', icon: Lock },
               { id: 'streaming', title: 'Streaming Configuration', desc: 'Cloud server quality and region', icon: Tv },
               { id: 'subscription', title: 'Subscriptions & Plans', desc: 'Manage your plan and billing', icon: Wallet },
+              { id: 'account_status', title: 'Account Status & Violations', desc: 'View guideline violations and appeal takedowns', icon: AlertTriangle },
               { id: 'reports', title: 'Report Status', desc: 'View all community reports', icon: Activity },
             ].map((item) => {
               const Icon = item.icon;
@@ -236,77 +249,39 @@ export const SettingsPage: React.FC = () => {
         {/* ACCOUNTS CENTER FULL MENU */}
         {screen === 'account_center' && (
           <div className="space-y-6">
-            <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-md relative overflow-hidden">
+            <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-md relative overflow-hidden">
               <div className="relative z-10">
                 <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mb-4 border border-white/10">
                   <Shield className="w-6 h-6 text-white" />
                 </div>
                 <h2 className="text-xl font-bold mb-1 tracking-tight">Garexcell Account Center</h2>
-                <p className="text-sm text-slate-300">Manage your connected experiences and account settings across all devices.</p>
+                <p className="text-sm text-slate-300">Unified profile management and cross-platform security preferences.</p>
               </div>
               <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 opacity-20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3"></div>
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500 opacity-20 rounded-full blur-[60px] translate-y-1/3 -translate-x-1/4"></div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-5 py-3 bg-slate-50 border-b border-slate-100">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Settings</h3>
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-100">
+                <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider">Core Account Controls</h3>
               </div>
               <div className="divide-y divide-slate-100">
                 {[
-                  { id: 'personal_details', title: 'Personal Details', desc: 'Manage your contact info, handle, and bio', icon: User },
-                  { id: 'accounts_management', title: 'Accounts Management', desc: 'Avatar, language, captions, verification', icon: Users },
+                  { id: 'personal_details', title: '1. Personal Info', desc: 'Email address, phone number, username, and bio', icon: User },
+                  { id: 'shared_logins', title: '2. Shared Account', desc: 'Manage shared gaming profiles and credentials', icon: Shield },
+                  { id: 'connected_services', title: '3. Account Syncing', desc: 'Cross-platform sync with Epic Games, PSN, and YouTube', icon: LinkIcon },
+                  { id: 'change_password', title: '4. Password & Security', desc: 'Change password and terminate active login sessions', icon: Lock },
                 ].map((item) => (
                   <button key={item.id} onClick={() => setScreen(item.id as any)} className="w-full p-4 hover:bg-slate-50 flex items-center justify-between transition text-left group">
                     <div className="flex items-center space-x-3.5">
-                      <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition"><item.icon className="w-5 h-5" /></div>
-                      <div><h4 className="font-semibold text-sm text-slate-900">{item.title}</h4><p className="text-xs text-slate-500">{item.desc}</p></div>
+                      <div className="w-10 h-10 rounded-2xl bg-slate-100 text-slate-800 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition">
+                        <item.icon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-sm text-slate-900">{item.title}</h4>
+                        <p className="text-xs text-slate-500 font-medium">{item.desc}</p>
+                      </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-400" />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-5 py-3 bg-slate-50 border-b border-slate-100">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Security & Privacy</h3>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {[
-                  { id: 'change_password', title: 'Password & Security', desc: 'Change password and secure account', icon: Lock },
-                  { id: 'two_factor', title: 'Two-Factor Authentication', desc: 'Authenticator app and SMS codes', icon: Key },
-                  { id: 'sessions', title: 'Login Sessions', desc: 'Active devices and browser sessions', icon: Smartphone },
-                  { id: 'my_info', title: 'My Info & Permissions', desc: 'Data access, downloads, and privacy controls', icon: FileText },
-                ].map((item) => (
-                  <button key={item.id} onClick={() => setScreen(item.id as any)} className="w-full p-4 hover:bg-slate-50 flex items-center justify-between transition text-left group">
-                    <div className="flex items-center space-x-3.5">
-                      <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition"><item.icon className="w-5 h-5" /></div>
-                      <div><h4 className="font-semibold text-sm text-slate-900">{item.title}</h4><p className="text-xs text-slate-500">{item.desc}</p></div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-400" />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-5 py-3 bg-slate-50 border-b border-slate-100">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Connections & Data</h3>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {[
-                  { id: 'connected_services', title: 'Connected Services', desc: 'Google, GitHub, and Discord integrations', icon: LinkIcon },
-                  { id: 'shared_logins', title: 'Shared Logins', desc: 'Cross-platform account synchronization', icon: Shield },
-                  { id: 'apps_and_services', title: 'Apps and Services', desc: 'Third-party apps with access to your account', icon: Sparkles },
-                  { id: 'deactivate', title: 'Deactivate or Delete', desc: 'Temporarily disable your profile and data', icon: Trash2 },
-                ].map((item) => (
-                  <button key={item.id} onClick={() => setScreen(item.id as any)} className="w-full p-4 hover:bg-slate-50 flex items-center justify-between transition text-left group">
-                    <div className="flex items-center space-x-3.5">
-                      <div className="w-9 h-9 rounded-xl bg-slate-100 text-rose-500 flex items-center justify-center group-hover:bg-rose-50 transition"><item.icon className="w-5 h-5" /></div>
-                      <div><h4 className="font-semibold text-sm text-slate-900">{item.title}</h4><p className="text-xs text-slate-500">{item.desc}</p></div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-400" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition" />
                   </button>
                 ))}
               </div>
@@ -314,22 +289,178 @@ export const SettingsPage: React.FC = () => {
           </div>
         )}
 
-        {/* 11. REPORTS */}
-        {screen === 'reports' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
-            <h3 className="font-bold text-sm text-slate-900">Community Reports</h3>
-            {reports.length === 0 ? (
-                <p className='text-xs text-slate-500'>No reports found.</p>
-            ) : (
-                <div className='space-y-3'>
-                    {reports.map((report) => (
-                        <div key={report.id} className='p-4 bg-slate-50 rounded-xl border border-slate-200'>
-                            <p className='text-xs font-bold'>Message: {report.messageId}</p>
-                            <p className='text-xs text-slate-600'>Reason: {report.reason}</p>
-                            <p className='text-[10px] text-slate-400 mt-1'>{new Date(report.created_at).toLocaleString()}</p>
-                        </div>
-                    ))}
+        {/* ACCOUNT STATUS & VIOLATIONS */}
+        {screen === 'account_status' && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 space-y-6">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="font-extrabold text-base text-slate-900">Account Health & Guideline Status</h3>
+                <p className="text-xs text-slate-500 font-medium">Recorded warnings, takedowns, and appeal statuses</p>
+              </div>
+              <span className={`px-3 py-1 text-xs font-black rounded-full uppercase tracking-wider ${
+                violations.filter(v => v.status !== 'approved').length === 0
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'bg-amber-100 text-amber-800'
+              }`}>
+                {violations.filter(v => v.status !== 'approved').length === 0 ? 'Good Standing' : 'Warnings Active'}
+              </span>
+            </div>
+
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">Context Analyzer & Free Speech Policy</h4>
+              <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                Playxcade uses Cloud & On-Device Context Functions to distinguish between actual threats and common gaming/business idioms (e.g. "killing a deal", "headshot"). Self-referential language and harmless expressions do not count as violations.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-500">Recorded Violations ({violations.length})</h4>
+
+              {violations.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200">
+                  <ShieldCheck className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                  <p className="text-xs font-bold text-slate-800">No Guideline Violations on Record</p>
+                  <p className="text-[11px] text-slate-500">Your account is in excellent standing with full platform access.</p>
                 </div>
+              ) : (
+                <div className="space-y-3">
+                  {violations.map((viol) => (
+                    <div key={viol.id} className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-rose-600">Guideline Violated</span>
+                          <h5 className="font-extrabold text-sm text-slate-900">{viol.guideline}</h5>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-400">{viol.date}</span>
+                      </div>
+
+                      <div className="p-3 bg-white border border-slate-200 rounded-xl font-mono text-xs text-slate-800">
+                        "{viol.content}"
+                      </div>
+
+                      {viol.reason && (
+                        <p className="text-xs text-slate-500 font-medium leading-normal bg-amber-50/50 p-2.5 rounded-lg border border-amber-100">
+                          {viol.reason}
+                        </p>
+                      )}
+
+                      <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs font-bold text-slate-700">Appeal Status:</span>
+                          {viol.status === 'none' && <span className="text-xs font-bold text-slate-500">Not Appealed</span>}
+                          {viol.status === 'pending' && <span className="text-xs font-bold text-amber-600">Under Review</span>}
+                          {viol.status === 'rejected' && <span className="text-xs font-bold text-rose-600">Appeal Rejected (Final)</span>}
+                          {viol.status === 'approved' && <span className="text-xs font-bold text-emerald-600">Violation Cleared</span>}
+                        </div>
+
+                        {/* APPEAL ACTIONS */}
+                        {viol.status === 'none' && (
+                          <button
+                            onClick={() => {
+                              setAppealModalViolId(viol.id);
+                              setAppealText('');
+                            }}
+                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition"
+                          >
+                            Appeal Takedown
+                          </button>
+                        )}
+
+                        {viol.status === 'rejected' && (
+                          <button
+                            disabled
+                            className="px-3 py-1.5 bg-slate-200 text-slate-400 font-bold text-xs rounded-xl cursor-not-allowed"
+                            title="This appeal decision is final and cannot be re-submitted."
+                          >
+                            Cannot Re-Appeal
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* APPEAL SUBMISSION DIALOG */}
+            {appealModalViolId && (
+              <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl space-y-3">
+                <h4 className="font-extrabold text-xs text-indigo-950 uppercase tracking-wider">Submit Takedown Appeal</h4>
+                <p className="text-xs text-indigo-900 font-medium">Explain why your statement should be permitted under free speech and gaming context guidelines:</p>
+                <textarea
+                  rows={3}
+                  value={appealText}
+                  onChange={(e) => setAppealText(e.target.value)}
+                  placeholder="E.g., This statement referred to a gaming context or business metaphor..."
+                  className="w-full p-3 bg-white border border-indigo-200 rounded-xl text-xs font-medium text-slate-900 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <div className="flex justify-end space-x-2">
+                  <button
+                    onClick={() => setAppealModalViolId(null)}
+                    className="px-3 py-1.5 bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setViolations(prev => prev.map(v => v.id === appealModalViolId ? { ...v, status: 'pending' } : v));
+                      setAppealModalViolId(null);
+                      showNotification('Takedown appeal submitted for moderator review.');
+                    }}
+                    className="px-4 py-1.5 bg-indigo-600 text-white font-bold text-xs rounded-xl"
+                  >
+                    Submit Appeal
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MY REPORTS */}
+        {screen === 'reports' && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900">My Community Reports</h3>
+                <p className="text-xs text-slate-500">Track all case updates submitted to Garexcell Trust & Safety</p>
+              </div>
+              <button
+                onClick={() => navigate('/report/new')}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition"
+              >
+                + New Report
+              </button>
+            </div>
+
+            {reports.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                <ShieldCheck className="w-10 h-10 text-emerald-500 mx-auto" />
+                <p className="text-xs font-bold text-slate-700">No active reports filed.</p>
+                <p className="text-[11px] text-slate-500">When you report a post or message, your case tracker will appear here.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {reports.map((report) => (
+                  <div
+                    key={report.id}
+                    onClick={() => navigate(`/reports/${report.id}`)}
+                    className="p-4 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200 transition cursor-pointer flex items-center justify-between group"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono text-xs font-black text-indigo-600">{report.case_id || `CASE-${report.id.substring(0,6).toUpperCase()}`}</span>
+                        <span className="px-2 py-0.5 bg-slate-200 text-slate-800 text-[10px] font-bold rounded-md">
+                          {report.category || report.reason || 'Review'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 font-medium">Status: <strong className="capitalize text-slate-900">{report.status || 'in_review'}</strong></p>
+                      <p className="text-[10px] text-slate-400">{new Date(report.created_at || Date.now()).toLocaleString()}</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-indigo-600" />
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}

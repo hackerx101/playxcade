@@ -241,53 +241,54 @@ export const CheckoutPage: React.FC = () => {
   }, [sdkReady, amount, plan, success, isGift, giftUserObj, checkingUser, user, updateProfile]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 font-sans selection:bg-indigo-100 selection:text-indigo-900">
-      <div className="max-w-md mx-auto px-4 py-8">
-        <IOSBackButton onClick={() => navigate(-1)} label="Back" />
+    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-slate-100 selection:text-slate-900">
+      <div className="flex-1 flex flex-col">
+        <div className="p-6">
+          <IOSBackButton onClick={() => navigate(-1)} label="" />
+        </div>
 
-        <div className="mt-6 bg-white border border-slate-200 rounded-[2rem] shadow-sm overflow-hidden">
-          <div className="bg-slate-900 px-8 py-10 text-center text-white relative overflow-hidden">
-            <div className="relative z-10">
-              {isGift ? (
-                <Gift className="w-12 h-12 mx-auto mb-4 text-pink-400 animate-bounce" />
-              ) : (
-                <ShieldCheck className="w-12 h-12 mx-auto mb-4 text-emerald-400" />
-              )}
-              <h1 className="text-3xl font-black mb-2 tracking-tight">
+        <div className="w-full max-w-lg mx-auto flex-1 flex flex-col">
+          <div className="px-6 pb-8 text-center space-y-4">
+            {isGift ? (
+              <Gift className="w-12 h-12 mx-auto text-slate-900" />
+            ) : (
+              <ShieldCheck className="w-12 h-12 mx-auto text-slate-900" />
+            )}
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-black mb-2 tracking-tight">
                 {isGift ? 'Gift Subscription' : 'Checkout'}
               </h1>
-              <p className="text-sm text-slate-300 font-medium">
+              <p className="text-sm text-slate-600 font-medium">
                 {isGift ? 'Surprise another member with a premium plan!' : 'Complete your subscription securely.'}
               </p>
             </div>
-            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500 opacity-20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3"></div>
           </div>
 
-          <div className="p-8 space-y-6">
+          <div className="px-6 pb-12 space-y-8 flex-1">
             {success ? (
-              <div className="text-center space-y-5 py-4 animate-fade-in">
-                <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto border border-emerald-200">
-                  <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+              <div className="text-center space-y-6 animate-fade-in flex flex-col justify-center h-full">
+                <div className="w-20 h-20 bg-slate-50 flex items-center justify-center mx-auto border-2 border-slate-200">
+                  <CheckCircle2 className="w-10 h-10 text-slate-900" />
                 </div>
-                <div className="space-y-2">
-                  <h2 className="text-xl font-black text-slate-900">Payment Approved!</h2>
-                  <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+                <div className="space-y-3">
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">Payment Approved!</h2>
+                  <p className="text-sm text-slate-600 font-medium leading-relaxed">
                     {isGift ? (
                       <span>
-                        You have successfully gifted the <strong className="text-indigo-600 uppercase">{plan}</strong> plan to <strong className="text-slate-900">@{giftUsername}</strong>. They have been upgraded and notified immediately!
+                        You have successfully gifted the <strong className="text-slate-900 uppercase">{plan}</strong> plan to <strong className="text-slate-900">@{giftUsername}</strong>. They have been upgraded and notified immediately!
                       </span>
                     ) : (
                       <span>
-                        Your account has been successfully upgraded to <strong className="text-indigo-600 uppercase">{plan}</strong>. All premium benefits are now active.
+                        Your account has been successfully upgraded to <strong className="text-slate-900 uppercase">{plan}</strong>. All premium benefits are now active.
                       </span>
                     )}
                   </p>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-left space-y-2 text-xs font-semibold">
+                <div className="bg-slate-50 border-2 border-slate-200 p-6 text-left space-y-3 text-sm font-bold">
                   <div className="flex justify-between">
                     <span className="text-slate-500">Order ID</span>
-                    <span className="text-slate-900 font-mono text-[11px]">{orderDetails?.id || 'N/A'}</span>
+                    <span className="text-slate-900 font-mono text-xs">{orderDetails?.id || 'N/A'}</span>
                   </div>
                   {isGift && (
                     <div className="flex justify-between">
@@ -301,23 +302,25 @@ export const CheckoutPage: React.FC = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Payer Email</span>
-                    <span className="text-slate-900">{orderDetails?.payer?.email_address || 'N/A'}</span>
+                    <span className="text-slate-900 truncate ml-4 text-right">{orderDetails?.payer?.email_address || 'N/A'}</span>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => navigate('/settings')}
-                  className="w-full py-3.5 bg-indigo-600 text-white font-bold text-xs uppercase tracking-wider rounded-xl hover:bg-indigo-700 transition shadow-md"
-                >
-                  Return to Account Settings
-                </button>
+                <div className="pt-4">
+                  <button
+                    onClick={() => navigate('/settings')}
+                    className="w-full py-4 bg-slate-900 text-white font-bold text-sm uppercase tracking-wider hover:bg-slate-800 transition rounded-none"
+                  >
+                    Return to Settings
+                  </button>
+                </div>
               </div>
             ) : (
               <>
                 {/* Gifting Recipient Form */}
                 {isGift && (
-                  <div className="space-y-3 bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100">
-                    <label className="block text-xs font-bold text-indigo-950 uppercase tracking-wider">
+                  <div className="space-y-3">
+                    <label className="block text-xs font-bold text-slate-900 uppercase tracking-wider">
                       Recipient Username
                     </label>
                     <div className="relative">
@@ -326,28 +329,28 @@ export const CheckoutPage: React.FC = () => {
                         value={giftUsername}
                         onChange={(e) => setGiftUsername(e.target.value)}
                         placeholder="Enter Garexcell username..."
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 transition text-slate-900"
+                        className="w-full px-4 py-4 bg-slate-50 border-2 border-slate-200 text-sm font-bold focus:outline-none focus:border-slate-900 transition text-slate-900 rounded-none"
                       />
                       {checkingUser && (
-                        <div className="absolute right-3 top-3.5">
-                          <Loader2 className="w-4 h-4 text-indigo-600 animate-spin" />
+                        <div className="absolute right-4 top-4">
+                          <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
                         </div>
                       )}
                     </div>
 
                     {giftUserObj ? (
-                      <div className="flex items-center space-x-2 text-emerald-700 text-xs font-semibold">
-                        <UserCheck className="w-4 h-4 text-emerald-500" />
+                      <div className="flex items-center space-x-2 text-slate-900 text-sm font-bold">
+                        <UserCheck className="w-5 h-5" />
                         <span>Recipient @{giftUserObj.username} verified!</span>
                       </div>
                     ) : userSearchError ? (
-                      <div className="flex items-start space-x-2 text-rose-600 text-xs font-semibold leading-relaxed">
-                        <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                      <div className="flex items-start space-x-2 text-rose-600 text-sm font-bold leading-relaxed">
+                        <AlertCircle className="w-5 h-5 shrink-0" />
                         <span>{userSearchError}</span>
                       </div>
                     ) : (
-                      <div className="flex items-start space-x-2 text-slate-500 text-xs font-semibold leading-relaxed">
-                        <HelpCircle className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                      <div className="flex items-start space-x-2 text-slate-500 text-sm font-bold leading-relaxed">
+                        <HelpCircle className="w-5 h-5 shrink-0" />
                         <span>Enter the recipient's username to verify their account before paying.</span>
                       </div>
                     )}
@@ -355,65 +358,65 @@ export const CheckoutPage: React.FC = () => {
                 )}
 
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                  <div className="flex justify-between items-center p-4 bg-slate-50 border-2 border-slate-200">
                     <span className="font-bold text-slate-500 text-sm">Selected Plan</span>
                     <span className="font-black text-slate-900 uppercase tracking-wider text-sm">{plan}</span>
                   </div>
-                  <div className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                  <div className="flex justify-between items-center p-4 bg-slate-50 border-2 border-slate-200">
                     <span className="font-bold text-slate-500 text-sm">Total Amount</span>
-                    <span className="font-black text-slate-900 text-xl">${amount} <span className="text-xs text-slate-400">USD</span></span>
+                    <span className="font-black text-slate-900 text-xl">${amount} <span className="text-xs text-slate-500">USD</span></span>
                   </div>
                   {token && (
-                    <div className="flex justify-between items-center p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
-                      <span className="font-bold text-emerald-700 text-sm flex items-center space-x-1">
-                        <CheckCircle2 className="w-4 h-4" />
+                    <div className="flex justify-between items-center p-4 bg-slate-50 border-2 border-slate-900">
+                      <span className="font-bold text-slate-900 text-sm flex items-center space-x-1">
+                        <CheckCircle2 className="w-5 h-5" />
                         <span>Token Applied</span>
                       </span>
-                      <span className="font-bold text-emerald-900 text-xs truncate max-w-[100px]">{token}</span>
+                      <span className="font-bold text-slate-900 text-xs truncate max-w-[100px]">{token}</span>
                     </div>
                   )}
                 </div>
 
                 {error && (
-                  <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start space-x-3 text-rose-800 text-xs font-semibold leading-relaxed">
-                    <XCircle className="w-5 h-5 text-rose-500 shrink-0" />
+                  <div className="p-4 bg-rose-50 border-2 border-rose-200 flex items-start space-x-3 text-rose-800 text-sm font-bold leading-relaxed">
+                    <XCircle className="w-5 h-5 shrink-0" />
                     <span>{error}</span>
                   </div>
                 )}
 
-                <div className="pt-2">
+                <div className="pt-4">
                   {!sdkReady ? (
-                    <div className="py-6 flex flex-col items-center justify-center space-y-3">
-                      <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
-                      <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Establishing secure connection...</p>
+                    <div className="py-8 flex flex-col items-center justify-center space-y-4">
+                      <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+                      <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Establishing secure connection...</p>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       {loading && (
-                        <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center space-x-3 text-indigo-900 text-xs font-bold">
-                          <Loader2 className="w-4 h-4 text-indigo-600 animate-spin shrink-0" />
-                          <span>Verifying your real-time payment approval with PayPal...</span>
+                        <div className="p-4 bg-slate-50 border-2 border-slate-200 flex items-center space-x-3 text-slate-900 text-sm font-bold">
+                          <Loader2 className="w-5 h-5 animate-spin shrink-0" />
+                          <span>Verifying your real-time payment approval...</span>
                         </div>
                       )}
 
                       {/* Require recipient verification for gifting before showing PayPal buttons */}
                       {isGift && !giftUserObj ? (
-                        <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start space-x-3 text-amber-800 text-xs font-semibold leading-relaxed">
-                          <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
-                          <span>Please verify a valid username to unlock the payment checkout.</span>
+                        <div className="p-4 bg-amber-50 border-2 border-amber-200 flex items-start space-x-3 text-amber-900 text-sm font-bold leading-relaxed">
+                          <AlertCircle className="w-5 h-5 shrink-0" />
+                          <span>Please verify a valid username to unlock checkout.</span>
                         </div>
                       ) : (
-                        <div className="rounded-2xl overflow-hidden bg-slate-50 border border-slate-200/60 p-4">
-                          <div id="paypal-button-container" className="w-full"></div>
+                        <div className="bg-slate-50 border-2 border-slate-200 p-4">
+                          <div id="paypal-button-container" className="w-full relative z-0"></div>
                         </div>
                       )}
                     </div>
                   )}
 
-                  <div className="my-4 flex items-center justify-center space-x-3">
-                    <div className="h-[1px] bg-slate-200 flex-1"></div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">OR</span>
-                    <div className="h-[1px] bg-slate-200 flex-1"></div>
+                  <div className="my-6 flex items-center justify-center space-x-4">
+                    <div className="h-[2px] bg-slate-100 flex-1"></div>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">OR</span>
+                    <div className="h-[2px] bg-slate-100 flex-1"></div>
                   </div>
 
                   <button
@@ -483,17 +486,12 @@ export const CheckoutPage: React.FC = () => {
                         setLoading(false);
                       }
                     }}
-                    className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider rounded-2xl transition shadow-md flex items-center justify-center space-x-2"
+                    className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm uppercase tracking-wider transition flex items-center justify-center space-x-2 rounded-none"
                   >
-                    <Sparkles className="w-4 h-4 text-white" />
-                    <span>Instant Sandbox Upgrade (1-Click)</span>
+                    <Sparkles className="w-5 h-5 text-white" />
+                    <span>Sandbox Bypass (1-Click)</span>
                   </button>
                 </div>
-
-                <p className="text-center text-xs text-slate-400 font-semibold flex items-center justify-center space-x-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Real PayPal Gateway supported. Sandbox Bypass available.</span>
-                </p>
               </>
             )}
           </div>

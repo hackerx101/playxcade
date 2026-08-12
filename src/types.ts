@@ -15,6 +15,7 @@ export interface UserProfile {
   dob?: string;
   avatar_url?: string;
   IsDeleted: boolean;
+  IsSuspended?: boolean;
   account_status: AccountStatus;
   limited_until?: number;
   suspension_reason?: string;
