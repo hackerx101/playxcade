@@ -14,15 +14,16 @@ export const GeoBlockOverlay: React.FC = () => {
     
     let activeCode = flags.region_code || 'US';
     if (!flags.region_code) {
-      if (tz.includes('Pyongyang') || lang.toLowerCase().includes('kp')) activeCode = 'KP';
-      else if (tz.includes('Moscow') || lang.toLowerCase().includes('ru')) activeCode = 'RU';
-      else if (tz.includes('El_Salvador') || lang.toLowerCase().includes('sv')) activeCode = 'SV';
+      if (tz.includes('Pyongyang') || lang.toLowerCase().endsWith('-kp')) activeCode = 'KP';
+      else if (tz.includes('Moscow') || lang.toLowerCase().endsWith('-ru')) activeCode = 'RU';
+      else if (tz.includes('El_Salvador') || lang.toLowerCase().endsWith('-sv')) activeCode = 'SV';
+      else activeCode = 'US';
     }
 
     setDetectedCountryCode(activeCode);
     setDetectedCountryName(getCountryName(activeCode));
 
-    if (flags.restricted_regions.includes(activeCode)) {
+    if (flags.restricted_regions.includes(activeCode) && activeCode !== 'US') {
       setIsOpen(true);
     }
   }, []);
@@ -62,6 +63,14 @@ export const GeoBlockOverlay: React.FC = () => {
             </span>
           </div>
         </div>
+        <button 
+          type="button"
+          onClick={() => setIsOpen(false)}
+          className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-lg border-2 border-slate-900 transition"
+          title="Dismiss Overlay"
+        >
+          <X className="w-5 h-5 stroke-[2.5]" />
+        </button>
       </div>
 
       {/* Main Center Message Area */}

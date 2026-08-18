@@ -62,14 +62,22 @@ export const OfflineScreen: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={handleRetry}
-          disabled={isChecking}
-          className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-[0.98] transition flex items-center justify-center space-x-2"
-        >
-          <RefreshCw className={`w-4 h-4 ${isChecking ? 'animate-spin' : ''}`} />
-          <span>{isChecking ? 'Checking Connection...' : 'Retry Connection'}</span>
-        </button>
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={handleRetry}
+            disabled={isChecking}
+            className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-indigo-600/20 active:scale-[0.98] transition flex items-center justify-center space-x-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${isChecking ? 'animate-spin' : ''}`} />
+            <span>{isChecking ? 'Checking Connection...' : 'Retry Connection'}</span>
+          </button>
+          <button
+            onClick={() => setIsOnline(true)}
+            className="w-full py-3 bg-slate-800/80 hover:bg-slate-800 text-slate-300 font-bold text-xs rounded-2xl transition"
+          >
+            Continue to App
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -138,8 +138,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onCommentClick }) => {
 
       {/* Square Media Attachment */}
       {post.media_url && (
-        <div className="relative aspect-square w-full bg-slate-950 flex items-center justify-center overflow-hidden">
-          {post.type === 'video' || post.media_url.includes('video') || post.media_url.endsWith('.mp4') || post.media_url.endsWith('.webm') || post.media_url.startsWith('data:video') ? (
+        <div className="relative aspect-auto max-h-[600px] w-full bg-slate-950 flex items-center justify-center overflow-hidden">
+          {post.type === 'video' || post.type === 'media_url' || post.media_url.includes('video') || post.media_url.endsWith('.mp4') || post.media_url.endsWith('.webm') || post.media_url.startsWith('data:video') ? (
             <VideoPlayer
               src={post.media_url}
               className="w-full h-full rounded-none"

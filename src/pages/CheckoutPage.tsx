@@ -25,7 +25,7 @@ export const CheckoutPage: React.FC = () => {
 
   // Extract subscription plan from path (e.g., /gift/:plan) or query params
   const { plan: routePlan } = useParams<{ plan?: string }>();
-  const plan = (routePlan || searchParams.get('plan') || 'premium').toLowerCase();
+  const initialPlan = (routePlan || searchParams.get('plan') || 'premium').toLowerCase();
 
   // Determine pricing based on plan name
   const planDefaultAmounts: Record<string, string> = {
@@ -33,7 +33,22 @@ export const CheckoutPage: React.FC = () => {
     premium: '20.99',
     diamond: '49.99'
   };
-  const amount = searchParams.get('amount') || planDefaultAmounts[plan] || '20.99';
+  const initialAmount = searchParams.get('amount') || planDefaultAmounts[initialPlan] || '20.99';
+
+  const [selectedPlan, setSelectedPlan] = useState(initialPlan);
+  const [selectedAmount, setSelectedAmount] = useState(initialAmount);
+
+  const AVAILABLE_PLANS = [
+    { id: 'essential', name: 'Essential', price: '5.99', badge: 'Starter', desc: 'Essential verified badge & community perks' },
+    { id: 'premium', name: 'Premium', price: '20.99', badge: 'Popular', desc: 'Gold badge, unlimited AI, HD streaming' },
+    { id: 'diamond', name: 'Diamond VIP', price: '49.99', badge: 'VIP', desc: 'Diamond badge & priority VIP access' }
+  ];
+
+  const handlePlanSelect = (planId: string, price: string) => {
+    setSelectedPlan(planId);
+    setSelectedAmount(price);
+    setError(null);
+  };
 
   // Gift recipient state
   const [giftUsername, setGiftUsername] = useState(() => {
@@ -55,6 +70,7 @@ export const CheckoutPage: React.FC = () => {
   const [sdkReady, setSdkReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<boolean>(false);
+  const [canceled, setCanceled] = useState<boolean>(false);
   const [orderDetails, setOrderDetails] = useState<any>(null);
 
   // Debounced recipient user check in Firestore
@@ -146,14 +162,14 @@ export const CheckoutPage: React.FC = () => {
         createOrder: (data: any, actions: any) => {
           setError(null);
           const paymentDescription = isGift
-            ? `Gift Garexcell Subscription [${plan.toUpperCase()}] to user @${giftUserObj?.username}`
-            : `Garexcell Subscription Plan: ${plan.toUpperCase()}`;
+            ? `Gift Garexcell Subscription [${selectedPlan.toUpperCase()}] to user @${giftUserObj?.username}`
+            : `Garexcell Subscription Plan: ${selectedPlan.toUpperCase()}`;
 
           return actions.order.create({
             purchase_units: [{
               amount: {
                 currency_code: 'USD',
-                value: amount
+                value: selectedAmount
               },
               description: paymentDescription
             }]
@@ -172,13 +188,13 @@ export const CheckoutPage: React.FC = () => {
 
                 // 1. Update recipient Firestore profile
                 await updateDoc(doc(db, 'profiles', giftUserObj.id), {
-                  subscription_plan: plan.toLowerCase(),
+                  subscription_plan: selectedPlan.toLowerCase(),
                   is_upgraded: true
                 });
 
                 // 2. Update recipient Supabase profile
                 await supabase.from('profiles').update({
-                  subscription_plan: plan.toLowerCase(),
+                  subscription_plan: selectedPlan.toLowerCase(),
                   is_upgraded: true
                 }).eq('user_id', giftUserObj.id);
 
@@ -189,7 +205,7 @@ export const CheckoutPage: React.FC = () => {
                   sender_username: user?.username || 'Garexcell Sponsor',
                   type: 'gift',
                   title: 'Subscription Gifted!',
-                  body: `🎉 @${user?.username || 'Someone'} has gifted you a subscription plan: ${plan.toUpperCase()}! All premium benefits are now active on your account.`,
+                  body: `@${user?.username || 'Someone'} has gifted you a subscription plan: ${selectedPlan.toUpperCase()}! All premium benefits are now active on your account.`,
                   created_at: new Date().toISOString(),
                   read: false
                 });
@@ -197,7 +213,7 @@ export const CheckoutPage: React.FC = () => {
               } else {
                 // Personal Upgrade
                 await updateProfile({
-                  subscription_plan: plan.toLowerCase() as any,
+                  subscription_plan: selectedPlan.toLowerCase() as any,
                   is_upgraded: true
                 });
 
@@ -208,7 +224,7 @@ export const CheckoutPage: React.FC = () => {
                   sender_username: 'playxcade_system',
                   type: 'system',
                   title: 'Subscription Upgraded!',
-                  body: `🎉 Your account has been successfully upgraded to ${plan.toUpperCase()}! Thank you for supporting Garexcell.`,
+                  body: `Your account has been successfully upgraded to ${selectedPlan.toUpperCase()}! Thank you for supporting the platform.`,
                   created_at: new Date().toISOString(),
                   read: false
                 });
@@ -231,6 +247,7 @@ export const CheckoutPage: React.FC = () => {
           setError('A secure communication error occurred with PayPal. Please check your account or try a different payment card.');
         },
         onCancel: (data: any) => {
+          setCanceled(true);
           setError('Transaction was cancelled. You can retry paying using the PayPal controls below.');
         }
       }).render('#paypal-button-container');
@@ -238,7 +255,7 @@ export const CheckoutPage: React.FC = () => {
       console.error("Error rendering PayPal buttons:", renderErr);
       setError('Could not initialize the PayPal checkout gateway.');
     }
-  }, [sdkReady, amount, plan, success, isGift, giftUserObj, checkingUser, user, updateProfile]);
+  }, [sdkReady, selectedAmount, selectedPlan, success, canceled, isGift, giftUserObj, checkingUser, user, updateProfile]);
 
   return (
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans selection:bg-slate-100 selection:text-slate-900">
@@ -275,11 +292,11 @@ export const CheckoutPage: React.FC = () => {
                   <p className="text-sm text-slate-600 font-medium leading-relaxed">
                     {isGift ? (
                       <span>
-                        You have successfully gifted the <strong className="text-slate-900 uppercase">{plan}</strong> plan to <strong className="text-slate-900">@{giftUsername}</strong>. They have been upgraded and notified immediately!
+                        You have successfully gifted the <strong className="text-slate-900 uppercase">{selectedPlan}</strong> plan to <strong className="text-slate-900">@{giftUsername}</strong>. They have been upgraded and notified immediately!
                       </span>
                     ) : (
                       <span>
-                        Your account has been successfully upgraded to <strong className="text-slate-900 uppercase">{plan}</strong>. All premium benefits are now active.
+                        Your account has been successfully upgraded to <strong className="text-slate-900 uppercase">{selectedPlan}</strong>. All premium benefits are now active.
                       </span>
                     )}
                   </p>
@@ -312,6 +329,32 @@ export const CheckoutPage: React.FC = () => {
                     className="w-full py-4 bg-slate-900 text-white font-bold text-sm uppercase tracking-wider hover:bg-slate-800 transition rounded-none"
                   >
                     Return to Settings
+                  </button>
+                </div>
+              </div>
+            ) : canceled ? (
+              <div className="text-center space-y-6 animate-fade-in flex flex-col justify-center h-full">
+                <div className="w-20 h-20 bg-rose-50 flex items-center justify-center mx-auto border-2 border-rose-200">
+                  <XCircle className="w-10 h-10 text-rose-600" />
+                </div>
+                <div className="space-y-3">
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">Payment Canceled</h2>
+                  <p className="text-sm text-slate-600 font-medium leading-relaxed">
+                    Your checkout process was canceled. No charges were made to your account. Would you like to try again?
+                  </p>
+                </div>
+                <div className="space-y-3 pt-4">
+                  <button
+                    onClick={() => setCanceled(false)}
+                    className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-bold tracking-wide transition-all shadow-md active:scale-95 uppercase text-sm"
+                  >
+                    Try Again
+                  </button>
+                  <button
+                    onClick={() => navigate(-1)}
+                    className="w-full py-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-900 font-bold tracking-wide transition-all uppercase text-sm"
+                  >
+                    Go Back
                   </button>
                 </div>
               </div>
@@ -357,14 +400,58 @@ export const CheckoutPage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="space-y-4">
+                {/* Select Subscription Plan */}
+                <div className="space-y-3">
+                  <label className="block text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Select Plan
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {AVAILABLE_PLANS.map((p) => {
+                      const isSelected = selectedPlan === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handlePlanSelect(p.id, p.price)}
+                          className={`p-3.5 text-left border-2 transition flex flex-col justify-between space-y-2 rounded-none ${
+                            isSelected
+                              ? 'border-slate-900 bg-slate-900 text-white shadow-md'
+                              : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-900'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-extrabold text-xs uppercase tracking-wider">{p.name}</span>
+                              <span
+                                className={`text-[9px] font-black px-1.5 py-0.5 uppercase tracking-widest ${
+                                  isSelected ? 'bg-white text-slate-900' : 'bg-slate-200 text-slate-800'
+                                }`}
+                              >
+                                {p.badge}
+                              </span>
+                            </div>
+                            <p className={`text-[10px] line-clamp-2 leading-tight ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
+                              {p.desc}
+                            </p>
+                          </div>
+                          <div className="pt-2 border-t border-slate-300/20 flex items-baseline justify-between">
+                            <span className="font-black text-sm">${p.price}</span>
+                            <span className={`text-[10px] font-bold ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>/ mo</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-2">
                   <div className="flex justify-between items-center p-4 bg-slate-50 border-2 border-slate-200">
                     <span className="font-bold text-slate-500 text-sm">Selected Plan</span>
-                    <span className="font-black text-slate-900 uppercase tracking-wider text-sm">{plan}</span>
+                    <span className="font-black text-slate-900 uppercase tracking-wider text-sm">{selectedPlan}</span>
                   </div>
                   <div className="flex justify-between items-center p-4 bg-slate-50 border-2 border-slate-200">
                     <span className="font-bold text-slate-500 text-sm">Total Amount</span>
-                    <span className="font-black text-slate-900 text-xl">${amount} <span className="text-xs text-slate-500">USD</span></span>
+                    <span className="font-black text-slate-900 text-xl">${selectedAmount} <span className="text-xs text-slate-500">USD</span></span>
                   </div>
                   {token && (
                     <div className="flex justify-between items-center p-4 bg-slate-50 border-2 border-slate-900">
@@ -384,7 +471,7 @@ export const CheckoutPage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="pt-4">
+                <div className="pt-2">
                   {!sdkReady ? (
                     <div className="py-8 flex flex-col items-center justify-center space-y-4">
                       <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
@@ -403,7 +490,7 @@ export const CheckoutPage: React.FC = () => {
                       {isGift && !giftUserObj ? (
                         <div className="p-4 bg-amber-50 border-2 border-amber-200 flex items-start space-x-3 text-amber-900 text-sm font-bold leading-relaxed">
                           <AlertCircle className="w-5 h-5 shrink-0" />
-                          <span>Please verify a valid username to unlock checkout.</span>
+                          <span>Please verify a valid recipient username above to unlock checkout.</span>
                         </div>
                       ) : (
                         <div className="bg-slate-50 border-2 border-slate-200 p-4">
@@ -412,85 +499,6 @@ export const CheckoutPage: React.FC = () => {
                       )}
                     </div>
                   )}
-
-                  <div className="my-6 flex items-center justify-center space-x-4">
-                    <div className="h-[2px] bg-slate-100 flex-1"></div>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">OR</span>
-                    <div className="h-[2px] bg-slate-100 flex-1"></div>
-                  </div>
-
-                  <button
-                    onClick={async () => {
-                      setLoading(true);
-                      setError(null);
-                      try {
-                        if (isGift) {
-                          if (!giftUserObj) {
-                            throw new Error("Please enter and verify a recipient username before continuing.");
-                          }
-                          
-                          // 1. Update Firestore recipient
-                          await updateDoc(doc(db, 'profiles', giftUserObj.id), {
-                            subscription_plan: plan.toLowerCase(),
-                            is_upgraded: true
-                          });
-
-                          // 2. Update Supabase recipient
-                          await supabase.from('profiles').update({
-                            subscription_plan: plan.toLowerCase(),
-                            is_upgraded: true
-                          }).eq('user_id', giftUserObj.id);
-
-                          // 3. Dispatch real-time system notification
-                          await addDoc(collection(db, 'notifications'), {
-                            recipient_id: giftUserObj.id,
-                            sender_id: user?.user_id || 'system',
-                            sender_username: user?.username || 'Garexcell Sponsor',
-                            type: 'gift',
-                            title: 'Subscription Gifted!',
-                            body: `🎉 @${user?.username || 'Someone'} has gifted you a subscription plan: ${plan.toUpperCase()}! All premium benefits are now active on your account.`,
-                            created_at: new Date().toISOString(),
-                            read: false
-                          });
-                        } else {
-                          // Self upgrade
-                          await updateProfile({
-                            subscription_plan: plan.toLowerCase() as any,
-                            is_upgraded: true
-                          });
-
-                          // Send self notification
-                          await addDoc(collection(db, 'notifications'), {
-                            recipient_id: user?.user_id,
-                            sender_id: 'system',
-                            sender_username: 'playxcade_system',
-                            type: 'system',
-                            title: 'Subscription Upgraded!',
-                            body: `🎉 Your account has been successfully upgraded to ${plan.toUpperCase()}! Thank you for supporting Garexcell.`,
-                            created_at: new Date().toISOString(),
-                            read: false
-                          });
-                        }
-
-                        setOrderDetails({
-                          id: `DEMO-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-                          payer: {
-                            name: { given_name: isGift ? giftUserObj.username : (user?.username || 'Garexcell'), surname: 'Member' },
-                            email_address: isGift ? (giftUserObj.email || 'gift@garexcell.com') : (user?.email || 'member@garexcell.com')
-                          }
-                        });
-                        setSuccess(true);
-                      } catch (err: any) {
-                        setError(err.message || 'Failed to complete sandbox upgrade.');
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
-                    className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm uppercase tracking-wider transition flex items-center justify-center space-x-2 rounded-none"
-                  >
-                    <Sparkles className="w-5 h-5 text-white" />
-                    <span>Sandbox Bypass (1-Click)</span>
-                  </button>
                 </div>
               </>
             )}

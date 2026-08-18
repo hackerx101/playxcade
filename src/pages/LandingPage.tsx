@@ -97,7 +97,7 @@ export const LandingPage: React.FC = () => {
                 to="/feed"
                 className="w-full sm:w-auto px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transition flex items-center justify-center space-x-2 text-base"
               >
-                <span>Enter Social Feed</span>
+                <span>Enter Feed</span>
                 <ArrowRight className="w-5 h-5" />
               </Link>
               <button

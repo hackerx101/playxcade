@@ -33,11 +33,10 @@ export const IOSBackButton: React.FC<IOSBackButtonProps> = ({
     <button
       onClick={handleClick}
       type="button"
-      className={`inline-flex items-center space-x-1.5 text-white bg-slate-900 hover:bg-black active:scale-95 transition-all duration-150 px-3 py-1.5 rounded-full shadow-sm border border-slate-800 shrink-0 select-none ${className}`}
-      aria-label="Go back"
+      className={`inline-flex items-center justify-center text-slate-800 bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all duration-150 w-9 h-9 rounded-full shadow-sm border border-slate-200/80 shrink-0 select-none ${className}`}
+      aria-label="Go back text-slate-900"
     >
-      <ChevronLeft className="w-4 h-4 text-white stroke-[2.5]" />
-      {label && <span className="text-xs font-bold text-white pr-0.5 tracking-tight">{label}</span>}
+      <ChevronLeft className="w-5 h-5 text-slate-800 stroke-[2.5]" />
     </button>
   );
 };

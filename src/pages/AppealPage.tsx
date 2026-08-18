@@ -28,6 +28,7 @@ export const AppealPage: React.FC = () => {
       name: fullName,
       phone,
       email,
+      dob: user?.dob || '',
     });
     navigate('/suspended');
   };

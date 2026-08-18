@@ -36,7 +36,7 @@ export const BottomBar: React.FC = () => {
           <span>{getTranslation(language, 'forYou')}</span>
         </NavLink>
 
-        {/* Middle FAB - Scorpio AI */}
+        {/* Middle FAB - Orion AI */}
         <NavLink
           to="/ai"
           className={({ isActive }) =>
@@ -48,7 +48,7 @@ export const BottomBar: React.FC = () => {
           <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-purple-600 via-indigo-600 to-indigo-500 text-white shadow-lg border-4 border-white flex items-center justify-center">
             <Bot className="w-6 h-6 animate-pulse" />
           </div>
-          <span className="text-[10px] font-extrabold text-purple-700 mt-0.5">Scorpio AI</span>
+          <span className="text-[10px] font-extrabold text-purple-700 mt-0.5">Orion AI</span>
         </NavLink>
 
         {/* Chat */}

@@ -12,9 +12,19 @@ import { Comment } from '../types';
 export const PostDetailPage: React.FC = () => {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
-  const { posts, user, fetchComments, addComment } = useAuth();
+  const { posts, user, fetchComments, addComment, fetchRealUsers, followingIds } = useAuth();
+  const [followingProfiles, setFollowingProfiles] = useState<any[]>([]);
 
   const targetPost = posts.find((p) => p.id === postId);
+
+  useEffect(() => {
+    if (followingIds && followingIds.length > 0 && fetchRealUsers) {
+      fetchRealUsers().then(allUsers => {
+        const followed = (allUsers || []).filter(u => followingIds.includes(u.user_id));
+        setFollowingProfiles(followed);
+      }).catch(() => {});
+    }
+  }, [followingIds]);
 
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
@@ -45,12 +55,15 @@ export const PostDetailPage: React.FC = () => {
   }, [postId]);
 
   // Available handles for @ mentions
-  const CANDIDATE_HANDLES = [
-    { username: 'scorpio', name: 'Scorpio AI', desc: 'Assistant 🤖', isBot: true },
-    { username: 'playxcade_system', name: 'Playxcade System', desc: 'Official Network Bot 💡', isBot: true },
-    { username: 'Esports Carribean', name: 'Esports Carribean', desc: 'Tournament Partner 🔥', isBot: false },
-    { username: 'garexcell', name: 'Garexcell Official', desc: 'Platform Admin ⚡', isBot: false },
+  let CANDIDATE_HANDLES = [
+    { username: 'orion', name: 'Orion AI', desc: 'Assistant', isBot: true },
+    { username: 'garexcell', name: 'Garexcell Support', desc: 'Platform Admin', isBot: false },
   ];
+  if (followingProfiles.length > 0) {
+    const dynamicHandles = followingProfiles.map(p => ({ username: p.username, name: p.name || p.username, desc: 'Following', isBot: false }));
+    CANDIDATE_HANDLES = [...dynamicHandles, ...CANDIDATE_HANDLES];
+  }
+  
 
   if (targetPost && !CANDIDATE_HANDLES.some((h) => h.username.toLowerCase() === targetPost.author_username.toLowerCase())) {
     CANDIDATE_HANDLES.push({
@@ -91,18 +104,18 @@ export const PostDetailPage: React.FC = () => {
     const cap = postCaption.toLowerCase();
 
     if (cap.includes('free fire') || cap.includes('bahamas') || cap.includes('jamaica')) {
-      return `🤖 **Scorpio AI Post Insight**:\n\nRegarding this Free Fire Championship post, squad registrations open next week with a $15,000 cash prize pool across Bahamas 🇧🇸 and Jamaica 🇯🇲! ${question ? `In answer to "${question}": Make sure your team forms early and verifies player IDs in settings.` : 'Get your squad ready!'}`;
+      return `**AI Post Insight**:\n\nRegarding this Free Fire Championship post, squad registrations open next week with a $15,000 cash prize pool across Bahamas and Jamaica! ${question ? `In answer to "${question}": Make sure your team forms early and verifies player IDs in settings.` : 'Get your squad ready!'}`;
     }
 
     if (cap.includes('bitrate') || cap.includes('streaming') || cap.includes('nvenc')) {
-      return `🤖 **Scorpio AI Tech Advice**:\n\nStream performance tip analyzed: Setting bitrate to 4500 kbps with hardware NVENC/VAAPI encoding provides 60fps 1080p stability on Playxcade live channels. ${question ? `Regarding your question: "${question}", test your upload latency before going live!` : ''}`;
+      return `**AI Tech Advice**:\n\nStream performance tip analyzed: Setting bitrate to 4500 kbps with hardware NVENC/VAAPI encoding provides 60fps 1080p stability on live channels. ${question ? `Regarding your question: "${question}", test your upload latency before going live!` : ''}`;
     }
 
     if (cap.includes('dark mode') || cap.includes('health')) {
-      return `🤖 **Scorpio AI Health Check**:\n\nGamer wellness is essential! Toggle dark mode in app settings and take 5-minute screen breaks to reduce digital eye strain during late night gaming sessions.`;
+      return `**AI Health Check**:\n\nGamer wellness is essential! Toggle dark mode in app settings and take 5-minute screen breaks to reduce digital eye strain during late night gaming sessions.`;
     }
 
-    return `🤖 **Scorpio AI Contextual Reply**:\n\n${question ? `Great question regarding this post! Based on context: "${question}"` : 'Scorpio AI has summarized this post for the community.'}\n\n• **Post Context**: "${postCaption.slice(0, 100)}..."\n• **AI Analysis**: Verified by Scorpio AI Assistant. Ask me anything on [/ai](/ai)!`;
+    return `**AI Contextual Reply**:\n\n${question ? `Great question regarding this post! Based on context: "${question}"` : 'AI has summarized this post for the community.'}\n\n• **Post Context**: "${postCaption.slice(0, 100)}..."\n• **AI Analysis**: Verified by AI Assistant.`;
   };
 
   const handleAddComment = async (e: React.FormEvent) => {
@@ -118,7 +131,7 @@ export const PostDetailPage: React.FC = () => {
       setCommentText('');
       setShowMentionMenu(false);
 
-      // Check if user mentioned @scorpio or @orion
+      // Check if user mentioned @orion
       if (/scorpio/i.test(submittedText) || /orion/i.test(submittedText)) {
         const botName = /orion/i.test(submittedText) ? 'orion' : 'scorpio';
         setScorpioQueryText(submittedText);
@@ -180,7 +193,7 @@ export const PostDetailPage: React.FC = () => {
     return parts.map((part, i) => {
       if (part.startsWith('@')) {
         const handle = part.slice(1);
-        const isScorpio = handle.toLowerCase() === 'scorpio';
+        const isScorpio = handle.toLowerCase() === 'orion' || handle.toLowerCase() === 'scorpio';
         return (
           <Link
             key={i}
@@ -229,7 +242,7 @@ export const PostDetailPage: React.FC = () => {
                   <MessageSquare className="w-4 h-4 text-indigo-600" />
                   <span>Comments ({comments.length})</span>
                 </div>
-                <span className="text-[11px] text-slate-400 font-medium">Type @ to mention Scorpio AI</span>
+                <span className="text-[11px] text-slate-400 font-medium">Type @ to mention Orion or users you follow</span>
               </h3>
 
               {/* Add Comment Input with Mention Dropdown */}
@@ -348,12 +361,12 @@ export const PostDetailPage: React.FC = () => {
                   <p className="text-xs text-slate-400 text-center py-4">No comments yet. Be the first to comment!</p>
                 ) : (
                   comments.map((c) => {
-                    const isScorpioComment = c.author_username?.toLowerCase() === 'scorpio';
+                    const isScorpioComment = c.author_username?.toLowerCase() === 'orion' || c.author_username?.toLowerCase() === 'scorpio';
                     return (
                       <div
                         key={c.id}
                         className={`flex items-start space-x-3 p-3 rounded-xl transition ${
-                          isScorpioComment ? 'bg-purple-50/80 border border-purple-200' : 'bg-slate-50/70'
+                          isScorpioComment ? 'bg-gradient-to-r from-purple-50/80 to-indigo-50/80 border border-purple-200' : 'bg-slate-50/70'
                         }`}
                       >
                         <img

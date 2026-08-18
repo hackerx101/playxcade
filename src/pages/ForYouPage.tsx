@@ -142,7 +142,7 @@ export const ForYouPage: React.FC = () => {
                     <p className="font-bold text-sm text-white group-hover:underline flex items-center space-x-1">
                       <span>@{post.author_username}</span>
                       {post.author_is_verified && (
-                        <ShieldCheck className="w-4 h-4 text-emerald-400" title="Identity Verified" />
+                        <span title="Identity Verified"><ShieldCheck className="w-4 h-4 text-emerald-400" /></span>
                       )}
                     </p>
                     <p className="text-[10px] text-indigo-300">Playxcade Creator</p>

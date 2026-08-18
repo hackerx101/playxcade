@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { getFeatureFlags } from './config/featureFlags';
 
@@ -35,6 +35,7 @@ import { GeoBlockOverlay } from './components/GeoBlockOverlay';
 import { GlobalCallManager } from './components/GlobalCallManager';
 import { OfflineScreen } from './components/OfflineScreen';
 import { TakedownWarningOverlay } from './components/TakedownWarningOverlay';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Protected route wrapper that checks if user is logged in and not suspended, deactivated, or migrating
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -60,15 +61,77 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
+const WebNotificationManager: React.FC = () => {
+  const { user, unreadNotificationCount, totalUnreadChatCount } = useAuth();
+  const prevNotifs = React.useRef(unreadNotificationCount);
+  const prevChats = React.useRef(totalUnreadChatCount);
+
+  React.useEffect(() => {
+    if (user && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+  }, [user]);
+
+  React.useEffect(() => {
+    if (!user || !('Notification' in window) || Notification.permission !== 'granted') return;
+    
+    if (unreadNotificationCount > prevNotifs.current) {
+      new Notification('Playxcade', {
+        body: 'You have new notifications',
+        icon: '/favicon.ico'
+      });
+    }
+    prevNotifs.current = unreadNotificationCount;
+  }, [unreadNotificationCount, user]);
+
+  React.useEffect(() => {
+    if (!user || !('Notification' in window) || Notification.permission !== 'granted') return;
+
+    if (totalUnreadChatCount > prevChats.current) {
+      new Notification('Playxcade', {
+        body: 'You have new messages',
+        icon: '/favicon.ico'
+      });
+    }
+    prevChats.current = totalUnreadChatCount;
+  }, [totalUnreadChatCount, user]);
+
+  return null;
+};
+
+const PWALaunchHandler: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    // Check if launched as a PWA (standalone)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+    
+    if (isStandalone && location.pathname === '/') {
+      // PWA standard launch
+      if (user) {
+        navigate('/feed', { replace: true });
+      }
+    }
+  }, [user, navigate, location.pathname]);
+
+  return null;
+};
+
 export default function App() {
   return (
-    <AuthProvider>
-      <GeoBlockOverlay />
-      <GlobalCallManager />
-      <OfflineScreen />
-      <TakedownWarningOverlay />
-      <BrowserRouter>
-        <Routes>
+    <ErrorBoundary>
+      <AuthProvider>
+        <WebNotificationManager />
+        <GeoBlockOverlay />
+        <GlobalCallManager />
+        <OfflineScreen />
+        <BrowserRouter>
+          <PWALaunchHandler />
+          <Routes>
           {/* Public Landing, Auth & Migration */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/ai" element={<AIPage />} />
@@ -276,5 +339,6 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+  </ErrorBoundary>
   );
 }

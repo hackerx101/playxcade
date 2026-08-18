@@ -1,15 +1,17 @@
-const CACHE_NAME = 'playxcade-pwa-v1';
+const CACHE_NAME = 'playxcade-pwa-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  '/src/main.tsx',
-  '/src/index.css'
+  '/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      // Ignore failures for assets that might not exist yet during vite dev
+      return Promise.allSettled(
+        ASSETS_TO_CACHE.map(asset => cache.add(asset).catch(e => console.log('SW Cache ignore:', asset)))
+      );
     }).then(() => self.skipWaiting())
   );
 });
@@ -26,9 +28,11 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  // Network first, fallback to cache
   event.respondWith(
     fetch(event.request)
       .then((response) => {
+        // Only cache successful dynamic responses from same origin if we wanted to
         return response;
       })
       .catch(() => {
@@ -39,8 +43,8 @@ self.addEventListener('fetch', (event) => {
           if (event.request.mode === 'navigate') {
             return caches.match('/index.html');
           }
-          return new Response('Network error happened', {
-            status: 408,
+          return new Response('Network offline', {
+            status: 503,
             headers: { 'Content-Type': 'text/plain' },
           });
         });

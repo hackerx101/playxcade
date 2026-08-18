@@ -19,9 +19,9 @@ export const StartStreamModal: React.FC<StartStreamModalProps> = ({ isOpen, onCl
   const [isCameraOff, setIsCameraOff] = useState(false);
   const [viewerCount, setViewerCount] = useState(1248);
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; user: string; text: string; time: string }>>([
-    { id: '1', user: 'ProGamerX', text: 'Let’s gooo! Hype stream! 🔥', time: '10:00 AM' },
+    { id: '1', user: 'ProGamerX', text: 'Let’s go! Hype stream!', time: '10:00 AM' },
     { id: '2', user: 'CyberQueen', text: 'What graphics settings are you using?', time: '10:01 AM' },
-    { id: '3', user: 'PixelKnight', text: 'Clutch play coming up 🎯', time: '10:02 AM' }
+    { id: '3', user: 'PixelKnight', text: 'Clutch play coming up', time: '10:02 AM' }
   ]);
   const [chatInput, setChatInput] = useState('');
 
@@ -103,8 +103,8 @@ export const StartStreamModal: React.FC<StartStreamModalProps> = ({ isOpen, onCl
     try {
       if (createPost) {
         await createPost({
-          caption: `🔴 LIVE NOW: ${streamTitle}`,
-          type: 'video',
+          caption: `[LIVE NOW] ${streamTitle}`,
+          type: 'media_url',
           media_url: 'https://assets.mixkit.co/videos/preview/mixkit-gameplay-of-a-first-person-shooter-42999-large.mp4',
           category: gameCategory,
           tags: ['live', 'stream', gameCategory.toLowerCase()],

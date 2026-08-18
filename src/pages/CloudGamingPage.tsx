@@ -58,7 +58,7 @@ export const CloudGamingPage: React.FC = () => {
 
   const handleLaunchGame = (game: Game) => {
     if (user?.account_status === 'limited') {
-      setModalMessage(`Your account is currently limited (${user.account_limit_reason || 'Policy Notice'}). Cloud gaming sessions are currently restricted.`);
+      setModalMessage(`Your account is currently limited (${(user as any).account_limit_reason || 'Policy Notice'}). Cloud gaming sessions are currently restricted.`);
       setModalOpen(true);
       return;
     }

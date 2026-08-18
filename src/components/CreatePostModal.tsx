@@ -38,13 +38,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
       }
 
       // Extract hashtags from caption or custom input
-      const extractedHashtags = (caption.match(/#[a-zA-Z0-9_]+/g) || []).concat(
-        hashtagInput.split(',').map((h) => (h.trim().startsWith('#') ? h.trim() : `#${h.trim()}`)).filter((h) => h.length > 1)
-      );
+      const captionTags: string[] = caption.match(/#[a-zA-Z0-9_]+/g) || [];
+      const extraTags: string[] = hashtagInput ? hashtagInput.split(',').map((h) => (h.trim().startsWith('#') ? h.trim() : `#${h.trim()}`)).filter((h) => h.length > 1) : [];
+      const extractedHashtags = captionTags.concat(extraTags);
 
-      const created = await createPost({
+      const postType = activeTab === 'video' ? 'video' : activeTab;
+
+      createPost({
         caption,
-        type: activeTab,
+        type: postType,
         media_url: media_url || undefined,
         hashtags: Array.from(new Set(extractedHashtags)),
         category,
@@ -57,10 +59,6 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
       setFile(null);
       setHashtagInput('');
       setIsSubmitting(false);
-
-      if (created && created.id) {
-        navigate(`/post/${created.id}`);
-      }
     } catch (err) {
       console.error('Failed to create post:', err);
       setIsSubmitting(false);

@@ -47,7 +47,7 @@ export interface Post {
   author_avatar?: string;
   author_is_verified?: boolean;
   caption: string;
-  type: 'text' | 'image' | 'video';
+  type: 'text' | 'image' | 'video' | 'media_url';
   media_url?: string;
   tags?: string[];
   hashtags?: string[];

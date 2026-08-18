@@ -10,6 +10,9 @@ interface CallScreenProps {
   isInitiator?: boolean;
   targetUserId?: string;
   incomingOffer?: RTCSessionDescriptionInit;
+  isMinimized?: boolean;
+  onMinimize?: () => void;
+  onDurationChange?: (duration: number) => void;
 }
 
 // Web Audio API phone ringtone synthesizer that outputs to speaker
@@ -86,6 +89,9 @@ export const CallScreen: React.FC<CallScreenProps> = ({
   isInitiator = true,
   targetUserId,
   incomingOffer,
+  isMinimized = false,
+  onMinimize,
+  onDurationChange
 }) => {
   const { user } = useAuth();
   const [isMuted, setIsMuted] = useState(false);
@@ -139,10 +145,16 @@ export const CallScreen: React.FC<CallScreenProps> = ({
   useEffect(() => {
     let timer: any;
     if (isConnected || peerConnected) {
-      timer = setInterval(() => setCallDuration((prev) => prev + 1), 1000);
+      timer = setInterval(() => {
+        setCallDuration((prev) => {
+          const next = prev + 1;
+          onDurationChange?.(next);
+          return next;
+        });
+      }, 1000);
     }
     return () => clearInterval(timer);
-  }, [isConnected, peerConnected]);
+  }, [isConnected, peerConnected, onDurationChange]);
 
   // WebRTC & WebSockets Real-time Call Setup
   useEffect(() => {
@@ -242,9 +254,12 @@ export const CallScreen: React.FC<CallScreenProps> = ({
 
         localStreamRef.current = stream;
 
-        // Show local feed in PiP
+        // Show local feed in PiP and main
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
+        }
+        if (mainVideoRef.current && !peerConnected) {
+          mainVideoRef.current.srcObject = stream;
         }
 
         // Add local tracks to peer connection
@@ -404,7 +419,7 @@ export const CallScreen: React.FC<CallScreenProps> = ({
   };
 
   return (
-    <div className={`fixed inset-0 z-50 bg-black flex flex-col select-none ${isFullscreen ? '' : 'sm:p-4'}`}>
+    <div className={`fixed inset-0 z-50 bg-black select-none ${isFullscreen ? '' : 'sm:p-4'}`} style={{ display: isMinimized ? 'none' : 'flex', flexDirection: 'column' }}>
       {/* Hidden HTML audio element for remote audio stream through speaker */}
       <audio ref={remoteAudioRef} autoPlay playsInline />
 
@@ -440,6 +455,13 @@ export const CallScreen: React.FC<CallScreenProps> = ({
               </button>
             )}
             <button
+              onClick={onMinimize}
+              className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20 transition"
+              title="Minimize Call"
+            >
+              <Minimize className="w-4 h-4" />
+            </button>
+            <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20 transition hidden sm:flex"
               title="Toggle Fullscreen"
@@ -454,8 +476,11 @@ export const CallScreen: React.FC<CallScreenProps> = ({
           
           {/* Voice Mode View or Video Off */}
           {isVideoOff ? (
-            <div className="flex flex-col items-center justify-center space-y-6 z-10 p-6 text-center">
-              <div className="relative flex items-center justify-center">
+            <div className="absolute inset-0 flex flex-col items-center justify-center space-y-6 z-10 p-6 text-center overflow-hidden">
+              {/* Blurry Glass Background */}
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/60 via-slate-900 to-purple-900/60 backdrop-blur-3xl z-0" />
+              
+              <div className="relative z-10 flex items-center justify-center">
                 {/* Real-time Microphone Volume Animated Pulse Rings */}
                 <div 
                   className="absolute rounded-full bg-indigo-500/20 transition-all duration-75"
@@ -476,21 +501,21 @@ export const CallScreen: React.FC<CallScreenProps> = ({
                 </div>
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-1 z-10">
                 <h3 className="text-xl font-extrabold text-white">Voice Call</h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-300">
                   {isRinging ? 'Calling...' : isMuted ? 'Your microphone is muted' : audioLevel > 15 ? 'Speaking...' : 'Connected • Audio output live'}
                 </p>
               </div>
 
               {/* Real Audio Wave Meter */}
-              <div className="flex items-center space-x-1 h-6">
+              <div className="flex items-center space-x-1 h-6 z-10">
                 {[0.4, 0.8, 1.2, 0.6, 1.0, 0.5, 0.9, 0.3].map((factor, idx) => (
                   <div
                     key={idx}
-                    className="w-1.5 bg-emerald-400 rounded-full transition-all duration-75"
+                    className={`w-1.5 rounded-full transition-all duration-75 ${isRinging ? 'bg-amber-400' : 'bg-emerald-400'}`}
                     style={{
-                      height: isMuted ? '4px' : `${Math.max(4, audioLevel * factor * 0.3)}px`,
+                      height: isMuted ? '4px' : `${Math.max(4, isRinging ? (Math.random() * 20) : audioLevel * factor * 0.3)}px`,
                     }}
                   />
                 ))}
@@ -518,7 +543,7 @@ export const CallScreen: React.FC<CallScreenProps> = ({
               )}
 
               {/* PiP Local Video Preview */}
-              <div className="absolute bottom-28 right-5 w-28 sm:w-36 aspect-[3/4] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 z-20">
+              <div className={`absolute bottom-28 right-5 w-28 sm:w-36 aspect-[3/4] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/20 z-20 transition-all ${!peerConnected ? 'opacity-0 translate-y-10' : 'opacity-100 translate-y-0'}`}>
                 <video
                   ref={localVideoRef}
                   autoPlay
@@ -539,7 +564,7 @@ export const CallScreen: React.FC<CallScreenProps> = ({
               <p className="text-xs text-slate-400 max-w-xs">{cameraError}</p>
               <button
                 onClick={() => setIsVideoOff(true)}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold mt-2"
               >
                 Switch to Voice Call
               </button>
@@ -549,6 +574,17 @@ export const CallScreen: React.FC<CallScreenProps> = ({
 
         {/* WhatsApp-Style Action Control Bar */}
         <div className="absolute bottom-0 inset-x-0 p-6 pb-8 flex justify-center items-center gap-6 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-30">
+          {isRinging && isInitiator && (
+             <button
+                onClick={() => {
+                  ringtoneRef.current.stop(); // Allows user to silence ringtone manually
+                }}
+                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all bg-amber-500 hover:bg-amber-400 text-white shadow-lg shadow-amber-500/30`}
+                title="Silence Ringtone"
+              >
+                <Volume2 className="w-6 h-6" />
+              </button>
+          )}
           <button
             onClick={() => setIsMuted(!isMuted)}
             className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${

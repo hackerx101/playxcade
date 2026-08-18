@@ -34,7 +34,7 @@ export const FollowsPage: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
-    fetchRealUsers(true).then((users) => {
+    fetchRealUsers().then((users) => {
       if (isMounted) {
         setCommunityUsers(users);
         setLoading(false);
@@ -198,7 +198,7 @@ export const FollowsPage: React.FC = () => {
                     >
                       <span>@{u.username}</span>
                       {u.IsIdentityVerify && (
-                        <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" title="Verified" />
+                        <span title="Verified"><ShieldCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" /></span>
                       )}
                     </Link>
                     <p className="text-xs text-slate-500 truncate max-w-xs sm:max-w-md">

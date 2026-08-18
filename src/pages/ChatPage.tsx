@@ -19,7 +19,11 @@ const DEFAULT_CHANNELS = [
   { id: 'squad', name: 'Squad Up', desc: 'Looking for group voice', type: 'voice' },
 ];
 
-const POPULAR_EMOJIS = ['😊', '😂', '🔥', '🎮', '👍', '🚀', '❤️', '💯', '🙏', '🙌', '⚡', '🎉', '🕹️', '🏆', '😎', '🍿', '👏', '💬', '💙', '💥'];
+const QUICK_REACTIONS = [
+  '[GG]', '[Clutch]', '[MVP]', '[LFG]', '[Win]', '[Hype]',
+  '[Fire]', '[GG WP]', '[Salute]', '[10/10]', '[Shield]', '[Zap]',
+  '[Flex]', '[Star]', '[Crown]', '[Target]', '[Hero]', '[Support]'
+];
 
 export const ChatPage: React.FC = () => {
   const { messages, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, user, chats, onlineUsers, joinRandomChat, fetchRealUsers, unreadCountsBySender, markChatAsRead, isSyncEnabled, toggleSync, isUpgradePromptOpen, setUpgradePromptOpen } = useAuth();
@@ -50,6 +54,8 @@ export const ChatPage: React.FC = () => {
   const [channelSettingsModal, setChannelSettingsModal] = useState<string | null>(null);
   const [voicePromptActive, setVoicePromptActive] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<any>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(288); // Default 72 tailwind spacing
+  const [isResizing, setIsResizing] = useState(false);
 
   // Cloudflare App ID provided by user
   const CLOUDFLARE_APP_ID = 'ce6166e0362af275b7fce968ceb80ba5';
@@ -62,17 +68,44 @@ export const ChatPage: React.FC = () => {
     return () => { isMounted = false; };
   }, []);
 
+  // Resize handler
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = Math.max(200, Math.min(e.clientX, 600));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
   useEffect(() => {
     if (roomParam) {
       const roomExists = channels.find(c => c.id === roomParam);
       setSelectedRoom(roomExists ? roomExists.id : roomParam);
     } else {
-      setSelectedRoom('');
+      setSelectedRoom('world-chat');
     }
   }, [roomParam, channels]);
 
   const targetChatId = (() => {
     if (selectedRoom.startsWith('dm_')) {
+      const parts = selectedRoom.replace('dm_', '').split('_');
+      if (parts.length >= 2) {
+        return selectedRoom;
+      }
       const otherUserId = selectedRoom.replace('dm_', '');
       return `dm_${[user?.user_id || '', otherUserId].sort().join('_')}`;
     }
@@ -84,10 +117,7 @@ export const ChatPage: React.FC = () => {
 
   useEffect(() => {
     if (selectedRoom) {
-      const unsub = fetchMessages(targetChatId);
-      return () => {
-        if (typeof unsub === 'function') unsub();
-      };
+      fetchMessages(targetChatId);
     }
   }, [selectedRoom, targetChatId, fetchMessages]);
 
@@ -196,14 +226,8 @@ export const ChatPage: React.FC = () => {
     if (!inputText.trim() || !selectedRoom) return;
 
     const recentMsgs = roomMessages.filter(m => m.sender_id === user?.user_id && new Date().getTime() - new Date(m.created_at).getTime() < 10000);
-    if (recentMsgs.length > 4) {
+    if (recentMsgs.length > 6) {
       alert("Please slow down. You are sending messages too quickly.");
-      return;
-    }
-    const inappropriateWords = ['abuse', 'hate', 'racist', 'slur'];
-    const hasBadWord = inappropriateWords.some(word => inputText.toLowerCase().includes(word));
-    if (hasBadWord) {
-      alert("Your message contains inappropriate content and cannot be sent.");
       return;
     }
 
@@ -308,7 +332,6 @@ export const ChatPage: React.FC = () => {
           channelId={selectedRoom}
           channelName={activeChannel.name} 
           onEndCall={() => { setActiveCall(null); setIncomingOffer(undefined); }} 
-          appId={CLOUDFLARE_APP_ID}
           isInitiator={isInitiator}
           targetUserId={chats.find(c => c.id === selectedRoom)?.participant_id || (selectedRoom.startsWith('dm_') ? selectedRoom.replace('dm_', '') : undefined)}
           incomingOffer={incomingOffer}
@@ -404,33 +427,35 @@ export const ChatPage: React.FC = () => {
             )}
 
             {/* Sidebar - Direct Messages & Participants */}
-            <div className={`fixed inset-y-0 left-0 z-50 md:relative w-[280px] md:w-64 lg:w-72 bg-slate-950 border-r border-slate-800 flex flex-col shrink-0 h-full transition-transform transform ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-
+            <div 
+              className={`fixed inset-y-0 left-0 z-50 md:relative bg-slate-50 border-r border-slate-200 flex flex-col shrink-0 h-full transition-transform transform ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
+              style={{ width: `${sidebarWidth}px` }}
+            >
           
           {/* Search bar at top of chat participant list */}
-          <div className="p-3 border-b border-slate-800 bg-slate-950 space-y-2">
+          <div className="p-3 border-b border-slate-200 bg-white space-y-2">
             <div className="flex items-center justify-between">
-              <h2 className="font-extrabold text-xs text-white uppercase tracking-wider flex items-center space-x-1.5">
-                <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+              <h2 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
+                <MessageSquare className="w-3.5 h-3.5 text-indigo-500" />
                 <span>Conversations</span>
               </h2>
               <button 
                 onClick={() => setShowCreateChannel(true)}
-                className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition text-xs flex items-center space-x-1"
+                className="p-1 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-lg transition text-xs flex items-center space-x-1"
                 title="Create Channel"
               >
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
               </button>
             </div>
 
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-500" />
+              <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400" />
               <input 
                 type="text" 
                 placeholder="Search participants..." 
                 value={participantSearch}
                 onChange={(e) => setParticipantSearch(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
             </div>
           </div>
@@ -440,7 +465,7 @@ export const ChatPage: React.FC = () => {
             {/* Top Item: Main World Chat */}
             <div>
               <p className="text-[10px] font-bold text-slate-500 uppercase px-2 py-1 tracking-wider">Featured</p>
-              <div className="group flex items-center rounded-lg pr-1 hover:bg-slate-900 transition">
+              <div className="group flex items-center rounded-lg pr-1 hover:bg-white transition">
                 <button
                   onClick={() => {
                     navigate('/chat/world-chat');
@@ -448,8 +473,8 @@ export const ChatPage: React.FC = () => {
                   }}
                   className={`flex-1 flex items-center space-x-2.5 px-2.5 py-2 rounded-lg text-left ${
                     selectedRoom === 'world-chat'
-                      ? 'bg-indigo-600/20 text-indigo-300 font-bold'
-                      : 'text-slate-300 hover:text-white'
+                      ? 'bg-indigo-50 text-indigo-700 font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-sm">
@@ -458,14 +483,14 @@ export const ChatPage: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold truncate">Main World Chat</span>
-                      <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded font-semibold">Global</span>
+                      <span className="text-[9px] bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded font-semibold">Global</span>
                     </div>
-                    <p className="text-[10px] text-slate-400 truncate">Live community conversation</p>
+                    <p className="text-[10px] text-slate-500 truncate">Live community conversation</p>
                   </div>
                 </button>
                 <button 
                   onClick={() => navigate(`/channel/world-chat/settings`)}
-                  className="p-1.5 text-slate-500 hover:text-white rounded hover:bg-slate-800"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100"
                   title="Channel Settings"
                 >
                   <Settings className="w-3.5 h-3.5" />
@@ -476,13 +501,13 @@ export const ChatPage: React.FC = () => {
             {/* Random Live Chat Action */}
             <button
               onClick={handleRandomMatch}
-              className="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-lg bg-slate-900/80 border border-slate-800 text-slate-200 hover:bg-indigo-600/10 hover:border-indigo-500/30 transition text-left group"
+              className="w-full flex items-center space-x-2.5 px-2.5 py-2 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 transition text-left group"
             >
-              <div className="w-7 h-7 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+              <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
                 <Shuffle className="w-3.5 h-3.5" />
               </div>
               <div className="flex-1 min-w-0">
-                <span className="text-xs font-bold block text-slate-200 group-hover:text-indigo-300">Match Live Chat</span>
+                <span className="text-xs font-bold block text-slate-900 group-hover:text-indigo-700">Match Live Chat</span>
                 <span className="text-[10px] text-slate-500 block truncate">Assign to live active group</span>
               </div>
             </button>
@@ -491,7 +516,7 @@ export const ChatPage: React.FC = () => {
             <div>
               <p className="text-[10px] font-bold text-slate-500 uppercase px-2 py-1 tracking-wider">Channels</p>
               {channels.filter(c => c.type === 'text' && c.id !== 'world-chat').map((channel) => (
-                <div key={channel.id} className="group flex items-center rounded-lg hover:bg-slate-900 pr-1 transition">
+                <div key={channel.id} className="group flex items-center rounded-lg hover:bg-white pr-1 transition">
                   <button
                     onClick={() => {
                       navigate(`/chat/${channel.id}`);
@@ -499,8 +524,8 @@ export const ChatPage: React.FC = () => {
                     }}
                     className={`flex-1 flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-left ${
                       selectedRoom === channel.id
-                        ? 'bg-indigo-600/10 text-indigo-400 font-bold'
-                        : 'text-slate-400 hover:text-slate-200'
+                        ? 'bg-indigo-50 text-indigo-700 font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     <Hash className="w-3.5 h-3.5 shrink-0" />
@@ -508,7 +533,7 @@ export const ChatPage: React.FC = () => {
                   </button>
                   <button 
                     onClick={() => navigate(`/channel/${channel.id}/settings`)} 
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-white transition"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-700 transition"
                     title="Channel Settings"
                   >
                     <Settings className="w-3 h-3" />
@@ -521,10 +546,10 @@ export const ChatPage: React.FC = () => {
             <div>
               <div className="flex items-center justify-between px-2 py-1">
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Voice Channels</p>
-                <span className="text-[9px] text-emerald-400 font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded">Live Audio</span>
+                <span className="text-[9px] text-emerald-600 font-semibold bg-emerald-100 px-1.5 py-0.5 rounded">Live Audio</span>
               </div>
               {channels.filter(c => c.type === 'voice').map((channel) => (
-                <div key={channel.id} className="group flex items-center rounded-lg hover:bg-slate-900 pr-1 transition">
+                <div key={channel.id} className="group flex items-center rounded-lg hover:bg-white pr-1 transition">
                   <button
                     onClick={() => {
                       setSelectedRoom(channel.id);
@@ -533,19 +558,19 @@ export const ChatPage: React.FC = () => {
                     }}
                     className={`flex-1 flex items-center space-x-2 px-2.5 py-2 rounded-lg text-left ${
                       selectedRoom === channel.id
-                        ? 'bg-emerald-500/10 text-emerald-400 font-bold'
-                        : 'text-slate-400 hover:text-slate-200'
+                        ? 'bg-emerald-50 text-emerald-700 font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <Phone className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                    <Phone className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
                     <span className="text-xs truncate flex-1">{channel.name}</span>
-                    <span className="text-[9px] font-bold bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded-full border border-slate-700">
+                    <span className="text-[9px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full border border-slate-200">
                       {selectedRoom === channel.id ? 'Active' : 'Voice'}
                     </span>
                   </button>
                   <button 
                     onClick={() => navigate(`/channel/${channel.id}/settings`)} 
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-white transition"
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-700 transition"
                     title="Settings"
                   >
                     <Settings className="w-3 h-3" />
@@ -562,7 +587,7 @@ export const ChatPage: React.FC = () => {
               {filteredChats.map(chat => {
                 const unreadCount = (unreadCountsBySender && (unreadCountsBySender[chat.participant_id] || unreadCountsBySender[chat.id])) || 0;
                 return (
-                  <div key={chat.id} className="group flex items-center rounded-lg hover:bg-slate-900 pr-1 transition">
+                  <div key={chat.id} className="group flex items-center rounded-lg hover:bg-white pr-1 transition">
                     <button 
                       onClick={() => {
                         setSelectedRoom(chat.id);
@@ -570,16 +595,16 @@ export const ChatPage: React.FC = () => {
                         setShowMobileSidebar(false);
                       }} 
                       className={`flex-1 flex items-center space-x-2.5 px-2 py-1.5 rounded-lg text-left ${
-                        selectedRoom === chat.id ? 'bg-indigo-600/10 text-indigo-300' : 'text-slate-300'
+                        selectedRoom === chat.id ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'
                       }`}
                     >
                       <div className="relative shrink-0">
                         <img src={chat.participant_avatar} className="w-7 h-7 rounded-full object-cover" alt={chat.participant_username} />
-                        <div className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-slate-950 ${onlineUsers[chat.participant_id] === 'online' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                        <div className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-white ${onlineUsers[chat.participant_id] === 'online' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold text-slate-200 truncate">{chat.participant_username}</p>
+                          <p className="text-xs font-semibold text-slate-900 truncate">{chat.participant_username}</p>
                           {unreadCount > 0 && (
                             <span className="bg-rose-500 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full animate-pulse shadow-sm ml-1 shrink-0">
                               {unreadCount > 9 ? '9+' : unreadCount}
@@ -591,7 +616,7 @@ export const ChatPage: React.FC = () => {
                     </button>
                     <button 
                       onClick={() => navigate('/settings')}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-white transition"
+                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-700 transition"
                       title="Settings"
                     >
                       <Settings className="w-3 h-3" />
@@ -600,26 +625,26 @@ export const ChatPage: React.FC = () => {
                 );
               })}
 
-              {/* Community Users Fallback if chats is small */}
-              {filteredChats.length === 0 && filteredCommunity.map(prof => {
+              {/* Community Users Backup List (show if searching or not many active chats) */}
+              {filteredCommunity.filter(u => !chats.find(c => c.participant_id === u.user_id)).map(prof => {
                 const unreadCount = (unreadCountsBySender && unreadCountsBySender[prof.user_id]) || 0;
                 return (
-                  <div key={prof.user_id} className="group flex items-center rounded-lg hover:bg-slate-900 pr-1 transition">
+                  <div key={prof.user_id} className="group flex items-center rounded-lg hover:bg-white pr-1 transition">
                     <button 
                       onClick={() => {
                         setSelectedRoom(`dm_${prof.user_id}`);
                         markChatAsRead(prof.user_id);
                         setShowMobileSidebar(false);
                       }} 
-                      className="flex-1 flex items-center space-x-2.5 px-2 py-1.5 rounded-lg text-left text-slate-300"
+                      className="flex-1 flex items-center space-x-2.5 px-2 py-1.5 rounded-lg text-left text-slate-700"
                     >
                       <div className="relative shrink-0">
                         <img src={prof.avatar_url} className="w-7 h-7 rounded-full object-cover" alt={prof.username} />
-                        <div className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-slate-950 ${onlineUsers[prof.user_id] === 'online' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                        <div className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-white ${onlineUsers[prof.user_id] === 'online' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold text-slate-200 truncate">@{prof.username}</p>
+                          <p className="text-xs font-semibold text-slate-900 truncate">@{prof.username}</p>
                           {unreadCount > 0 && (
                             <span className="bg-rose-500 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded-full animate-pulse shadow-sm ml-1 shrink-0">
                               {unreadCount > 9 ? '9+' : unreadCount}
@@ -631,7 +656,7 @@ export const ChatPage: React.FC = () => {
                     </button>
                     <button 
                       onClick={() => navigate('/settings')}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-white transition"
+                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-700 transition"
                       title="Settings"
                     >
                       <Settings className="w-3 h-3" />
@@ -642,16 +667,16 @@ export const ChatPage: React.FC = () => {
             </div>
 
             {/* Real-time Sync Switch Panel */}
-            <div className="mt-4 pt-4 border-t border-slate-800/80 px-2 pb-2">
-              <div className="bg-slate-900/60 border border-slate-800/60 rounded-2xl p-3.5 flex items-center justify-between shadow-inner">
+            <div className="mt-4 pt-4 border-t border-slate-200 px-2 pb-2">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between shadow-sm">
                 <div className="space-y-0.5">
-                  <p className="text-xs font-bold text-slate-200">Real-time Sync</p>
+                  <p className="text-xs font-bold text-slate-900">Real-time Sync</p>
                   <p className="text-[10px] text-slate-500">Live feed snapshot updates</p>
                 </div>
                 <button
                   onClick={toggleSync}
                   className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    isSyncEnabled ? 'bg-indigo-600' : 'bg-slate-700'
+                    isSyncEnabled ? 'bg-indigo-600' : 'bg-slate-300'
                   }`}
                 >
                   <span
@@ -664,6 +689,18 @@ export const ChatPage: React.FC = () => {
             </div>
 
           </div>
+
+          {/* Drag Handle */}
+          <div 
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-indigo-400 active:bg-indigo-600 transition-colors z-50 group"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setIsResizing(true);
+            }}
+          >
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-1 bg-slate-300 group-hover:bg-indigo-500 rounded-full transition-colors" />
+          </div>
+
         </div>
 
         {/* Chat Area */}
@@ -689,6 +726,18 @@ export const ChatPage: React.FC = () => {
 
               <div className="flex items-center space-x-1 sm:space-x-2">
                 <button
+                  onClick={toggleSync}
+                  className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 border ${
+                    isSyncEnabled
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-slate-100 text-slate-500 border-slate-200'
+                  }`}
+                  title={isSyncEnabled ? "Live Sync Active (Click to Pause)" : "Live Sync Paused (Click to Enable)"}
+                >
+                  <span className={`w-2 h-2 rounded-full ${isSyncEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                  <span className="hidden md:inline">Sync {isSyncEnabled ? 'ON' : 'OFF'}</span>
+                </button>
+                <button
                   onClick={() => setShowSearch(!showSearch)}
                   className="p-2 sm:px-3 sm:py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg transition flex items-center space-x-2"
                   title="Search Messages"
@@ -697,19 +746,19 @@ export const ChatPage: React.FC = () => {
                 </button>
                 <button
                   onClick={() => startCall('voice')}
-                  className="p-2 sm:px-3 sm:py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg transition flex items-center space-x-2"
+                  className="p-2 sm:px-3 sm:py-2 bg-slate-100 hover:bg-slate-200 text-black border border-slate-300 rounded-xl transition flex items-center space-x-2 font-bold shadow-sm"
                   title="Voice Call"
                 >
-                  <Phone className="w-4 h-4 text-emerald-500" />
-                  <span className="hidden sm:inline text-xs font-bold">Voice Call</span>
+                  <Phone className="w-4 h-4 text-black" />
+                  <span className="hidden sm:inline text-xs font-black text-black">Voice Call</span>
                 </button>
                 <button
                   onClick={() => startCall('video')}
-                  className="p-2 sm:px-3 sm:py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center space-x-2 shadow-sm"
+                  className="p-2 sm:px-3 sm:py-2 bg-slate-900 hover:bg-black text-white rounded-xl transition flex items-center space-x-2 shadow-md"
                   title="Video Call"
                 >
-                  <Video className="w-4 h-4" />
-                  <span className="hidden sm:inline text-xs font-bold">Video Call</span>
+                  <Video className="w-4 h-4 text-white" />
+                  <span className="hidden sm:inline text-xs font-black text-white">Video Call</span>
                 </button>
                 <button
                   onClick={() => navigate(`/channel/${selectedRoom}/settings`)}
@@ -822,7 +871,7 @@ export const ChatPage: React.FC = () => {
                                   {((isMine && user?.email?.toLowerCase().endsWith('@garexcell.com')) || 
                                     (!isMine && msg.sender_email?.toLowerCase().endsWith('@garexcell.com')) ||
                                     (msg.sender_username?.toLowerCase() === 'garexcell')) && (
-                                    <CheckCircle2 className="w-3 h-3 fill-amber-500 text-white stroke-[2]" title="Verified Gold Badge" />
+                                    <span title="Verified Gold Badge"><CheckCircle2 className="w-3 h-3 fill-amber-500 text-white stroke-[2]" /></span>
                                   )}
                                 </Link>
                                 <span className="text-[10px] text-slate-400 font-medium">
@@ -962,23 +1011,25 @@ export const ChatPage: React.FC = () => {
             )}
           </div>
 
-          {/* Emoji Picker Popover */}
+          {/* Reaction Badge Popover */}
           {showEmojiPicker && (
             <div className="absolute bottom-20 left-4 w-72 sm:w-96 bg-white border border-slate-200 rounded-3xl shadow-2xl z-10 p-4 space-y-3">
-              <input
-                type="text"
-                placeholder="Search emoji..."
-                className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm"
-              />
-              <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 max-h-64 overflow-y-auto">
-                {POPULAR_EMOJIS.map((emoji) => (
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="text-xs font-bold text-slate-700">Quick Reactions</span>
+                <button type="button" onClick={() => setShowEmojiPicker(false)} className="text-slate-400 hover:text-slate-600 text-xs font-semibold">Close</button>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-64 overflow-y-auto">
+                {QUICK_REACTIONS.map((rx) => (
                   <button
-                    key={emoji}
+                    key={rx}
                     type="button"
-                    onClick={() => insertEmoji(emoji)}
-                    className="text-xl p-2 hover:bg-slate-100 rounded-lg transition text-center"
+                    onClick={() => {
+                      insertEmoji(` ${rx} `);
+                      setShowEmojiPicker(false);
+                    }}
+                    className="text-xs font-extrabold px-3 py-2 bg-slate-100 hover:bg-black hover:text-white rounded-xl transition text-center"
                   >
-                    {emoji}
+                    {rx}
                   </button>
                 ))}
               </div>

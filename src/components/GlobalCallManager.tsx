@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { IncomingCallModal } from './IncomingCallModal';
 import { CallScreen } from './CallScreen';
+import { PhoneCall } from 'lucide-react';
 
 export const GlobalCallManager: React.FC = () => {
   const { user } = useAuth();
@@ -20,6 +21,9 @@ export const GlobalCallManager: React.FC = () => {
     targetUserId?: string;
     incomingOffer?: RTCSessionDescriptionInit;
   } | null>(null);
+
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -108,14 +112,40 @@ export const GlobalCallManager: React.FC = () => {
 
   const handleEndCall = () => {
     setActiveCall(null);
+    setIsMinimized(false);
+    setCallDuration(0);
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
     <>
+      {/* Floating Status Indicator when Call is Minimized */}
+      {activeCall && isMinimized && (
+        <button
+          onClick={() => setIsMinimized(false)}
+          className="fixed top-3 left-1/2 -translate-x-1/2 z-[100] flex items-center space-x-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-1.5 rounded-full shadow-lg transition-transform active:scale-95"
+          title="Return to active call"
+        >
+          <div className="relative flex items-center justify-center">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-75 animate-ping"></span>
+            <PhoneCall className="relative w-4 h-4" />
+          </div>
+          <span className="text-sm font-bold font-mono">
+            {formatTime(callDuration)}
+          </span>
+        </button>
+      )}
+
       {incomingCall && (
         <IncomingCallModal
           callerName={incomingCall.caller}
-          callType={incomingCall.type}
+          channelName={incomingCall.roomId || 'Direct Call'}
+          type={incomingCall.type}
           onAccept={handleAcceptCall}
           onDecline={handleDeclineCall}
         />
@@ -124,11 +154,15 @@ export const GlobalCallManager: React.FC = () => {
       {activeCall && (
         <CallScreen
           type={activeCall.type}
+          channelId={activeCall.channelName || 'global_call'}
           channelName={activeCall.channelName}
           isInitiator={activeCall.isInitiator}
           targetUserId={activeCall.targetUserId}
           incomingOffer={activeCall.incomingOffer}
           onEndCall={handleEndCall}
+          isMinimized={isMinimized}
+          onMinimize={() => setIsMinimized(true)}
+          onDurationChange={setCallDuration}
         />
       )}
     </>

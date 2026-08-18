@@ -93,6 +93,9 @@ interface AuthContextType {
   editMessage: (messageId: string, newText: string, chatId: string) => Promise<void>;
   reportMessage: (messageId: string, reason: string) => Promise<void>;
   blockUser: (userId: string) => Promise<void>;
+  unblockUser: (userId: string) => Promise<void>;
+  blockedUserIds: string[];
+  fetchBlockedUsers: () => Promise<string[]>;
   banUser: (userId: string) => Promise<void>;
   fetchCachedProfile: (userIdOrUsername: string) => Promise<UserProfile | null>;
   uploadFile: (file: File) => Promise<string>;
@@ -112,7 +115,7 @@ const DEFAULT_SEED_POSTS: Post[] = [
     author_email: 'info@esportscaribbean.com',
     author_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=EsportsCaribbean',
     author_is_verified: true,
-    caption: '🔥 BIG ANNOUNCEMENT! Esports Carribean is hosting the ultimate Free Fire Championship live across The Bahamas 🇧🇸 and Jamaica 🇯🇲! $15,000 cash prize pool! Squad registrations open next week. Who is repping their island? 🏝️🎮',
+    caption: 'BIG ANNOUNCEMENT! Esports Carribean is hosting the ultimate Free Fire Championship live across The Bahamas and Jamaica! $15,000 cash prize pool! Squad registrations open next week. Who is repping their island?',
     type: 'text',
     tags: ['freefire', 'esports', 'bahamas', 'jamaica'],
     hashtags: ['#FreeFire', '#EsportsCarribean', '#Bahamas', '#Jamaica'],
@@ -130,7 +133,7 @@ const DEFAULT_SEED_POSTS: Post[] = [
     author_email: 'system@garexcell.com',
     author_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=system',
     author_is_verified: true,
-    caption: '💡 Playxcade Tip #1: For butter-smooth streaming performance, set your bitrate to 4500 kbps and enable hardware NVENC/VAAPI encoding in studio settings!',
+    caption: 'Tip #1: For smooth streaming performance, set your bitrate to 4500 kbps and enable hardware NVENC/VAAPI encoding in studio settings!',
     type: 'text',
     tags: ['tips', 'streaming'],
     hashtags: ['#PlayxcadeTips', '#Streaming'],
@@ -148,7 +151,7 @@ const DEFAULT_SEED_POSTS: Post[] = [
     author_email: 'system@garexcell.com',
     author_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=system',
     author_is_verified: true,
-    caption: '💡 Playxcade Tip #2: Protect your vision during late-night gaming sessions! Toggle dark mode in app settings and take a 5-minute screen break every hour.',
+    caption: 'Tip #2: Protect your vision during late-night gaming sessions! Toggle dark mode in app settings and take a 5-minute screen break every hour.',
     type: 'text',
     tags: ['tips', 'gaming', 'health'],
     hashtags: ['#GamerHealth', '#PlayxcadeTips'],
@@ -166,7 +169,7 @@ const DEFAULT_SEED_POSTS: Post[] = [
     author_email: 'system@garexcell.com',
     author_avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=system',
     author_is_verified: true,
-    caption: '💡 Playxcade Tip #3: Enable Real-time Sync in chat channels to get instant live message updates and stream reactions without refreshing!',
+    caption: 'Tip #3: Enable Real-time Sync in chat channels to get instant live message updates and stream reactions without refreshing!',
     type: 'text',
     tags: ['tips', 'chat'],
     hashtags: ['#PlayxcadeTips', '#RealTimeSync'],
@@ -1245,14 +1248,58 @@ ${modResult.userFacingMessage}`);
   const fetchChats = useCallback(async () => {
     if (!user) return;
     
-    // Load local storage chats cache first for instant load
+    // 1. Initialize merged chats from localStorage cache and stored message keys
+    const mergedChatsMap = new Map<string, Chat>();
+
     try {
       const storedChats = localStorage.getItem(`playxcade_chats_${user.user_id}`);
       if (storedChats) {
-        setChats(JSON.parse(storedChats));
+        const parsed: Chat[] = JSON.parse(storedChats);
+        parsed.forEach(c => mergedChatsMap.set(c.id, c));
+      }
+
+      // Scan localStorage for any previous message threads
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('playxcade_msgs_')) {
+          const chatId = key.replace('playxcade_msgs_', '');
+          const msgsRaw = localStorage.getItem(key);
+          if (msgsRaw) {
+            try {
+              const msgs: Message[] = JSON.parse(msgsRaw);
+              if (msgs.length > 0) {
+                const lastMsg = msgs[msgs.length - 1];
+                if (!mergedChatsMap.has(chatId)) {
+                  let otherUserId = lastMsg.sender_id === user.user_id ? '' : lastMsg.sender_id;
+                  if (!otherUserId && chatId.startsWith('dm_')) {
+                    const parts = chatId.replace('dm_', '').split('_');
+                    otherUserId = parts.find(p => p !== user.user_id) || parts[0];
+                  }
+                  if (otherUserId) {
+                    const otherProf = await fetchCachedProfile(otherUserId);
+                    mergedChatsMap.set(chatId, {
+                      id: chatId,
+                      participant_id: otherUserId,
+                      participant_username: otherProf?.username || lastMsg.sender_username || 'Member',
+                      participant_avatar: otherProf?.avatar_url || lastMsg.sender_avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${otherUserId}`,
+                      last_message: lastMsg.text,
+                      updated_at: lastMsg.created_at
+                    });
+                  }
+                }
+              }
+            } catch (e) {}
+          }
+        }
       }
     } catch (e) {}
 
+    // Populate state with cached chats immediately
+    if (mergedChatsMap.size > 0) {
+      setChats(Array.from(mergedChatsMap.values()).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()));
+    }
+
+    // 2. Fetch from Firestore chat_participants to stay synchronized
     try {
       const participantsRef = collection(db, 'chat_participants');
       const q = query(participantsRef, where('user_id', '==', user.user_id));
@@ -1260,7 +1307,6 @@ ${modResult.userFacingMessage}`);
 
       if (!querySnap.empty) {
         const chatIds = querySnap.docs.map(d => d.data().chat_id);
-        const formattedChats: Chat[] = [];
 
         for (const cId of chatIds) {
           const otherPartQuery = query(collection(db, 'chat_participants'), where('chat_id', '==', cId));
@@ -1271,7 +1317,6 @@ ${modResult.userFacingMessage}`);
             const otherUserId = otherDoc.data().user_id;
             const otherProfile = await fetchCachedProfile(otherUserId);
 
-            // Fetch last message for this chat thread
             let lastText = '';
             let lastTime = new Date().toISOString();
             try {
@@ -1284,24 +1329,21 @@ ${modResult.userFacingMessage}`);
               }
             } catch (e) {}
 
-            formattedChats.push({
+            mergedChatsMap.set(cId, {
               id: cId,
               participant_id: otherUserId,
               participant_username: otherProfile?.username || 'Unknown',
               participant_avatar: otherProfile?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${otherUserId}`,
-              last_message: lastText,
-              updated_at: lastTime
+              last_message: lastText || mergedChatsMap.get(cId)?.last_message || 'Start chatting',
+              updated_at: lastTime || mergedChatsMap.get(cId)?.updated_at || new Date().toISOString()
             });
           }
         }
-
-        // Sort chats by most recent message/activity
-        formattedChats.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-        setChats(formattedChats);
-
-        // Store in localStorage for both users
-        localStorage.setItem(`playxcade_chats_${user.user_id}`, JSON.stringify(formattedChats));
       }
+
+      const finalSorted = Array.from(mergedChatsMap.values()).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      setChats(finalSorted);
+      localStorage.setItem(`playxcade_chats_${user.user_id}`, JSON.stringify(finalSorted));
     } catch (err) {
       console.warn('Fetch chats warning:', err);
     }
@@ -1522,6 +1564,33 @@ ${modResult.userFacingMessage}`);
         return updated;
       });
 
+      // Update chats list so the thread is retained in sidebar
+      let recipientUserId = targetUserId;
+      if (!recipientUserId && actualChatId.startsWith('dm_')) {
+        const parts = actualChatId.replace('dm_', '').split('_');
+        recipientUserId = parts.find(p => p !== user.user_id) || parts[0];
+      }
+      if (recipientUserId) {
+        const otherProf = await fetchCachedProfile(recipientUserId);
+        const updatedChat: Chat = {
+          id: actualChatId,
+          participant_id: recipientUserId,
+          participant_username: otherProf?.username || username || 'Member',
+          participant_avatar: otherProf?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${recipientUserId}`,
+          last_message: text.trim(),
+          updated_at: nowTime
+        };
+
+        setChats(prev => {
+          const filtered = prev.filter(c => c.id !== actualChatId);
+          const newChatsList = [updatedChat, ...filtered];
+          try {
+            localStorage.setItem(`playxcade_chats_${user.user_id}`, JSON.stringify(newChatsList));
+          } catch (e) {}
+          return newChatsList;
+        });
+      }
+
       // Store in Firebase Firestore for real-time delivery to the recipient
       await setDoc(doc(db, 'messages', msgId), newMsgDoc);
 
@@ -1578,14 +1647,64 @@ ${modResult.userFacingMessage}`);
     alert('Message reported.');
   };
 
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+
+  const fetchBlockedUsers = useCallback(async () => {
+    if (!user) return [];
+    let ids: string[] = [];
+    try {
+      const q = query(collection(db, 'blocked'), where('blockerId', '==', user.user_id));
+      const snap = await getDocs(q);
+      ids = snap.docs.map(d => d.data().blockedId);
+    } catch (e) {}
+
+    const localStr = localStorage.getItem(`blocked_users_${user.user_id}`);
+    const local = localStr ? JSON.parse(localStr) : [];
+    const combined = Array.from(new Set([...ids, ...local]));
+    setBlockedUserIds(combined);
+    return combined;
+  }, [user?.user_id]);
+
+  useEffect(() => {
+    if (user?.user_id) {
+      fetchBlockedUsers();
+    }
+  }, [user?.user_id, fetchBlockedUsers]);
+
   const blockUser = async (userId: string) => {
     if (!user) return;
-    // Add to firebase 'blocked' collection or user profile
-    await addDoc(collection(db, 'blocked'), {
+    try {
+      await addDoc(collection(db, 'blocked'), {
         blockerId: user.user_id,
         blockedId: userId,
         created_at: new Date().toISOString()
-    });
+      });
+    } catch (e) {}
+
+    const localStr = localStorage.getItem(`blocked_users_${user.user_id}`);
+    const local: string[] = localStr ? JSON.parse(localStr) : [];
+    if (!local.includes(userId)) {
+      local.push(userId);
+      localStorage.setItem(`blocked_users_${user.user_id}`, JSON.stringify(local));
+    }
+    setBlockedUserIds(prev => Array.from(new Set([...prev, userId])));
+  };
+
+  const unblockUser = async (userId: string) => {
+    if (!user) return;
+    try {
+      const q = query(collection(db, 'blocked'), where('blockerId', '==', user.user_id), where('blockedId', '==', userId));
+      const snap = await getDocs(q);
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, 'blocked', d.id));
+      }
+    } catch (e) {}
+
+    const localStr = localStorage.getItem(`blocked_users_${user.user_id}`);
+    const local: string[] = localStr ? JSON.parse(localStr) : [];
+    const updated = local.filter((id) => id !== userId);
+    localStorage.setItem(`blocked_users_${user.user_id}`, JSON.stringify(updated));
+    setBlockedUserIds(prev => prev.filter(id => id !== userId));
   };
 
   const banUser = async (userId: string) => {
@@ -1630,7 +1749,7 @@ ${modResult.userFacingMessage}`);
         addRecentSearch, clearRecentSearches, removeRecentSearch, followingIds,
         login, signup, loginWithSupabase, signupWithSupabase, logout, completeOnboarding, createPost, deletePost, archivePost,
         likePost, addComment, fetchComments, toggleFollow, updateProfile, submitAppeal, verifyIdentity, restoreAccountStatus,
-        verifications, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, banUser, fetchCachedProfile, uploadFile, onlineUsers, joinRandomChat,
+        verifications, sendMessage, fetchMessages, deleteMessage, editMessage, reportMessage, blockUser, unblockUser, blockedUserIds, fetchBlockedUsers, banUser, fetchCachedProfile, uploadFile, onlineUsers, joinRandomChat,
         isSyncEnabled, toggleSync, isUpgradePromptOpen, setUpgradePromptOpen
       }}
     >

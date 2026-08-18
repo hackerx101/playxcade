@@ -71,7 +71,7 @@ export const ProfilePage: React.FC = () => {
         user_id: targetUserId,
         username: username || 'Gamer',
         email: `${username}@garexcell.com`,
-        bio: 'Competitive gamer & stream creator on Garexcell Network 🕹️',
+        bio: 'Competitive gamer & stream creator on Garexcell Network',
         dob: '2001-04-10',
         avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`,
         IsDeleted: false,
